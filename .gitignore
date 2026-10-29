@@ -1,0 +1,40 @@
+# ---- dependencies --------------------------------------------------------
+node_modules/
+
+# ---- build output (Vite, Wrangler; the rest are leftovers of earlier toolchains)
+dist/
+.vite/
+.vinext/
+.cloudflare/
+.next/
+.open-next/
+.wrangler/
+out/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- secrets and local settings: never commit -----------------------------
+# Only .env.example (placeholders, no real values) is tracked.
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+
+# ---- local tooling and QA output ------------------------------------------
+.claude/
+screenshots/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

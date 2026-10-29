@@ -1,0 +1,10 @@
+{
+  // Browser app, Worker and build tooling run in different runtimes with conflicting
+  // globals (DOM vs workerd), so each is type-checked as its own project: `npm run typecheck`.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.worker.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

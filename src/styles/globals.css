@@ -1,0 +1,616 @@
+@import "tailwindcss";
+
+/*
+ * SG16 Identifier — black & neon-red design system.
+ *
+ * Every component colours itself through these scales, so the whole site is
+ * themed from this one file:
+ *   ink-*    black → red-tinted charcoal surfaces and default borders
+ *   mist-*   warm greys for body copy, labels and hairlines
+ *   paper-*  near-white headings and primary text
+ *   brand-*  the neon-red brand accent (actions, highlights, active states)
+ * Status colours keep their meaning and are never used as decoration:
+ *   ok-*     supported findings, successful operations
+ *   warn-*   caution, uncertainty, "not configured", degraded states
+ *   risk-*   detected risk, contradictions, errors
+ *   info-*   neutral observations
+ */
+@theme {
+  --font-display: "Space Grotesk", "Trebuchet MS", sans-serif;
+  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink-950: #000000; /* bg-primary */
+  --color-ink-900: #0b0507; /* bg-section */
+  --color-ink-850: #080507; /* bg-input */
+  --color-ink-800: #10090b; /* bg-card */
+  --color-ink-700: #130a0d; /* bg-elevated / card hover */
+  --color-ink-600: #28151b; /* border-default */
+  --color-ink-500: #3a1f27;
+  --color-mist-600: #85797f; /* small print — 4.6:1 on cards */
+  --color-mist-500: #8c8187; /* text-muted */
+  --color-mist-400: #a69ca1;
+  --color-mist-300: #c2b9bd; /* text-secondary */
+  --color-mist-200: #dcd5d8;
+  --color-paper-50: #f5f3f4; /* text-primary */
+  --color-paper-100: #ece8ea;
+  --color-paper-200: #ddd7da;
+  --color-paper-300: #c9c1c5;
+
+  --color-brand-300: #ff5c7a;
+  --color-brand-400: #ff1744; /* accent-red — highlighted text, indicators */
+  --color-brand-500: #ff0033; /* accent-red-bright — bars, dots, active borders */
+  --color-brand-600: #c9002b; /* accent-red-deep */
+  --color-brand-700: #48121f; /* border-red */
+  --color-brand-800: #a91432; /* border-active */
+  --color-brand-900: #100000; /* bg-secondary */
+  /* Button fill: #ff1744 with white text is only 3.85:1, below WCAG AA, so filled
+     buttons use the palette's #e60035 (4.75:1) and deepen on hover. */
+  --color-brand-cta: #e60035;
+  --color-brand-cta-hover: #c9002b;
+
+  --color-ok-400: #35d6a3;
+  --color-warn-400: #ffb020;
+  --color-warn-500: #f59e0b;
+  --color-risk-400: #ff6b78;
+  --color-risk-500: #ff4655;
+  --color-info-400: #70b7ff;
+  --color-unknown-400: #8f868b;
+
+  --animate-scan: scan 7s linear infinite;
+  --animate-ticker: ticker 46s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.8s ease-out infinite;
+  --animate-sweep: sweep 3.4s ease-in-out infinite;
+  --animate-float-slow: float-slow 14s ease-in-out infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Semantic tokens from the theme specification, for hand-written CSS. */
+:root {
+  --bg-primary: var(--color-ink-950);
+  --bg-secondary: var(--color-brand-900);
+  --bg-section: var(--color-ink-900);
+  --bg-card: var(--color-ink-800);
+  --bg-elevated: var(--color-ink-700);
+  --bg-input: var(--color-ink-850);
+
+  --accent-red: var(--color-brand-400);
+  --accent-red-bright: var(--color-brand-500);
+  --accent-red-hover: var(--color-brand-cta);
+  --accent-red-deep: var(--color-brand-600);
+
+  --border-default: var(--color-ink-600);
+  --border-red: var(--color-brand-700);
+  --border-active: var(--color-brand-800);
+
+  --text-primary: var(--color-paper-50);
+  --text-secondary: var(--color-mist-300);
+  --text-muted: var(--color-mist-500);
+
+  --glow-red-soft: rgba(255, 23, 68, 0.2);
+  --glow-red-strong: rgba(255, 23, 68, 0.35);
+
+  --status-success: var(--color-ok-400);
+  --status-warning: var(--color-warn-500);
+  --status-danger: var(--color-risk-500);
+  --status-info: var(--color-info-400);
+
+  color-scheme: dark;
+}
+
+@keyframes scan {
+  0% { transform: translateY(-110%); }
+  100% { transform: translateY(1100%); }
+}
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.7; }
+  80%, 100% { transform: scale(1.7); opacity: 0; }
+}
+@keyframes sweep {
+  0%, 100% { transform: translateX(-120%); }
+  55% { transform: translateX(220%); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -18px, 0); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  scrollbar-color: var(--color-ink-600) var(--bg-primary);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--color-mist-200);
+  font-feature-settings: "ss01", "cv01";
+}
+
+::selection {
+  background: rgb(255 23 68 / 0.75);
+  color: #ffffff;
+}
+
+/* Layered as base so component utilities (field, outline-none…) can refine them. */
+@layer base {
+  /* One visible keyboard focus treatment for every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--accent-red);
+    outline-offset: 2px;
+  }
+
+  select option {
+    background-color: var(--bg-section);
+    color: var(--text-primary);
+  }
+}
+
+/* Technical grid: very low-contrast dark red. */
+@utility grid-field {
+  background-image:
+    linear-gradient(to right, rgb(255 23 68 / 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 23 68 / 0.07) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 35%, transparent 85%);
+}
+
+@utility grid-fine {
+  background-image:
+    linear-gradient(to right, rgb(255 23 68 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 23 68 / 0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.noise-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+
+.hairline {
+  border-color: var(--border-default);
+}
+
+@utility rule-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/*
+ * Component classes live in the components layer so any utility on the same
+ * element (a verdict-tone border, a padding override…) always wins.
+ * Red alphas are literal rgb() values: #ff1744 = rgb(255 23 68).
+ */
+@layer components {
+  /* Default card surface. */
+  .card-edge {
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-card);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.025),
+      0 1px 2px rgb(0 0 0 / 0.6);
+  }
+
+  /* Hover treatment for cards: elevated surface and a dark-red edge. */
+  .card-hover {
+    transition: border-color 0.35s ease, background-color 0.35s ease;
+  }
+  .card-hover:hover,
+  .card-hover:focus-within {
+    border-color: var(--border-active);
+    background-color: var(--bg-elevated);
+  }
+
+  /* Flagship panels (engine dashboard, highlighted plan): red outline + restrained glow. */
+  .card-feature {
+    border-color: var(--border-active);
+    box-shadow:
+      inset 0 1px 0 rgb(255 23 68 / 0.12),
+      0 0 0 1px rgb(0 0 0 / 0.7),
+      0 24px 70px -36px var(--glow-red-strong);
+  }
+
+  /* Dashed red boundary — reserved for evidence boundaries and technical metadata. */
+  .dash-accent {
+    border: 1px dashed rgb(255 23 68 / 0.45);
+  }
+
+  /* Restrained glow for primary actions. */
+  .glow-accent {
+    box-shadow: 0 10px 30px -12px var(--glow-red-strong);
+  }
+
+  /* Shared form field. */
+  .field {
+    width: 100%;
+    border-radius: 0.125rem;
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-input);
+    color: var(--color-mist-200);
+    font-family: var(--font-mono);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .field::placeholder {
+    color: var(--color-mist-600);
+  }
+  .field:hover {
+    border-color: var(--color-ink-500);
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    border-color: var(--accent-red);
+    box-shadow: 0 0 0 3px var(--glow-red-soft);
+  }
+}
+
+/*
+ * Hero robot (components/robo-manager.tsx). The PNG has an opaque black
+ * background, so the whole group is screen-blended onto the hero: black drops
+ * out and only the neon remains. The mask fades the floor and side edges.
+ *
+ * The image is drawn twice so the head can move on its own: a body copy with a
+ * soft head-shaped hole, and a head copy masked to the head, pivoting at the
+ * neck. Each motion lives on its own layer so they never fight over `transform`:
+ *   .robo             typing lean (transition)
+ *   .robo__motion     scan vibration, high-risk body shake, talking jitter
+ *   .robo__float      continuous hover
+ *   .robo__breathe    continuous breathing scale
+ *     .robo__head         typing tilt toward the input (transition)
+ *       .robo__head-motion  look-around, thinking shake, nod, "no", confused tilt
+ * State and verdict tone come from data-state / data-tone / data-speaking on .robo.
+ */
+@keyframes robo-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -12px, 0); }
+}
+@keyframes robo-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+@keyframes robo-glow {
+  0%, 100% { opacity: 0.22; }
+  50% { opacity: 0.6; }
+}
+@keyframes robo-look {
+  0%, 100% { transform: perspective(520px) rotateY(0) rotateZ(0); }
+  20% { transform: perspective(520px) rotateY(-9deg) rotateZ(-1.5deg); }
+  40% { transform: perspective(520px) rotateY(-9deg) rotateZ(-1.5deg); }
+  62% { transform: perspective(520px) rotateY(8deg) rotateZ(1.5deg); }
+  80% { transform: perspective(520px) rotateY(8deg) rotateZ(1.5deg); }
+}
+@keyframes robo-think {
+  0%, 100% { transform: rotateZ(-5deg); }
+  50% { transform: rotateZ(5deg); }
+}
+@keyframes robo-vibrate {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(-2px, 1px, 0); }
+  50% { transform: translate3d(2px, -1px, 0); }
+  75% { transform: translate3d(-1px, -2px, 0); }
+}
+@keyframes robo-talk {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  33% { transform: translate3d(0.6px, -0.6px, 0); }
+  66% { transform: translate3d(-0.6px, 0.4px, 0); }
+}
+@keyframes robo-nod {
+  0%, 100% { transform: perspective(520px) rotateX(0); }
+  22% { transform: perspective(520px) rotateX(-15deg); }
+  44% { transform: perspective(520px) rotateX(2deg); }
+  66% { transform: perspective(520px) rotateX(-11deg); }
+  86% { transform: perspective(520px) rotateX(0); }
+}
+@keyframes robo-no {
+  0%, 100% { transform: perspective(520px) rotateY(0); }
+  12% { transform: perspective(520px) rotateY(-20deg); }
+  32% { transform: perspective(520px) rotateY(20deg); }
+  52% { transform: perspective(520px) rotateY(-20deg); }
+  72% { transform: perspective(520px) rotateY(20deg); }
+  88% { transform: perspective(520px) rotateY(-4deg); }
+}
+@keyframes robo-confused {
+  0% { transform: rotateZ(0); }
+  30%, 100% { transform: rotateZ(9deg); }
+}
+@keyframes robo-shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  15%, 45%, 75% { transform: translate3d(-3px, 0, 0); }
+  30%, 60%, 90% { transform: translate3d(3px, 0, 0); }
+}
+@keyframes robo-scan {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  15%, 45% { filter: brightness(1.6) saturate(1.3); }
+}
+@keyframes robo-eye-scan {
+  0%, 100% { opacity: 0.25; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes robo-eye-on {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes robo-eye-breathe {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+@keyframes robo-eye-alarm {
+  0%, 24%, 48%, 72% { opacity: 1; transform: scale(1.06); }
+  12%, 36%, 60% { opacity: 0.15; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes robo-eye-talk {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+@keyframes robo-voice {
+  0%, 100% { transform: scaleY(0.25); }
+  50% { transform: scaleY(1); }
+}
+@layer components {
+  .robo {
+    position: relative;
+    mix-blend-mode: screen;
+    transition: transform 0.3s ease;
+  }
+  .robo__float {
+    animation: robo-float 3s ease-in-out infinite;
+    will-change: transform;
+  }
+  .robo__breathe {
+    position: relative;
+    transform-origin: center bottom;
+    animation: robo-breathe 4s ease-in-out infinite;
+    will-change: transform;
+  }
+  .robo__motion,
+  .robo__head-motion {
+    will-change: transform;
+  }
+  .robo__img,
+  .robo__bloom {
+    display: block;
+    width: 100%;
+    height: auto;
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 84%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 84%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    mask-composite: intersect;
+  }
+  .robo__img {
+    position: relative;
+    transition: filter 0.3s ease;
+  }
+  /* Body copy: everything except a soft hole where the head is (SVG in the PNG's 1042 × 1509 space). */
+  .robo__img--body {
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 84%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1042 1509' preserveAspectRatio='none'><filter id='f'><feGaussianBlur stdDeviation='5'/></filter><path fill-rule='evenodd' filter='url(%23f)' d='M-20-20H1062V1529H-20Z M405 91H635A224 224 0 0 1 859 315V435A224 224 0 0 1 635 659H405A224 224 0 0 1 181 435V315A224 224 0 0 1 405 91Z'/></svg>");
+    -webkit-mask-size: 100% 100%;
+    -webkit-mask-composite: source-in, source-in;
+    mask-image:
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 84%, transparent 100%),
+      linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1042 1509' preserveAspectRatio='none'><filter id='f'><feGaussianBlur stdDeviation='5'/></filter><path fill-rule='evenodd' filter='url(%23f)' d='M-20-20H1062V1529H-20Z M405 91H635A224 224 0 0 1 859 315V435A224 224 0 0 1 635 659H405A224 224 0 0 1 181 435V315A224 224 0 0 1 405 91Z'/></svg>");
+    mask-size: 100% 100%;
+    mask-composite: intersect, intersect;
+  }
+  .robo__head {
+    position: absolute;
+    inset: 0;
+    /* Pivot at the neck. */
+    transform-origin: 50% 44%;
+    transition: transform 0.3s ease;
+  }
+  .robo__head-motion {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 44%;
+    animation: robo-look 6s ease-in-out infinite;
+  }
+  /* Head copy: only the head, slightly larger than the body's hole so the seam never shows. */
+  .robo__img--head {
+    position: absolute;
+    inset: 0;
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1042 1509' preserveAspectRatio='none'><filter id='f'><feGaussianBlur stdDeviation='5'/></filter><rect x='165' y='75' width='710' height='600' rx='240' filter='url(%23f)'/></svg>");
+    -webkit-mask-size: 100% 100%;
+    -webkit-mask-composite: source-over;
+    mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1042 1509' preserveAspectRatio='none'><filter id='f'><feGaussianBlur stdDeviation='5'/></filter><rect x='165' y='75' width='710' height='600' rx='240' filter='url(%23f)'/></svg>");
+    mask-size: 100% 100%;
+    mask-composite: add;
+  }
+  .robo__bloom {
+    position: absolute;
+    inset: 0;
+    filter: blur(14px) brightness(1.6) saturate(1.4);
+    animation: robo-glow 3.5s ease-in-out infinite;
+  }
+
+  /* Typing: the input has focus — head tips forward to look at it, body leans in, eyes brighten. */
+  .robo[data-state="typing"] {
+    transform: translateY(10px);
+  }
+  .robo[data-state="typing"] .robo__head {
+    transform: perspective(520px) rotateX(-10deg);
+  }
+  .robo[data-state="typing"] .robo__img {
+    filter: brightness(1.18) saturate(1.1);
+  }
+  .robo[data-state="typing"] .robo__bloom,
+  .robo[data-state="scanning"] .robo__bloom {
+    animation: none;
+    opacity: 0.9;
+  }
+
+  /* Speaking: a fine talking jitter, a voice meter in the lower face, eyes pulse with the speech. */
+  .robo[data-speaking] .robo__motion {
+    animation: robo-talk 0.22s linear infinite;
+  }
+
+  /* Scanning: the head shakes in thought while the body vibrates. Wins over talking. */
+  .robo[data-state="scanning"] .robo__motion {
+    animation: robo-vibrate 0.12s linear infinite;
+  }
+  .robo[data-state="scanning"] .robo__head-motion {
+    animation: robo-think 0.36s ease-in-out infinite;
+  }
+  .robo[data-state="scanning"] .robo__img {
+    animation: robo-scan 1.2s ease-out infinite;
+  }
+
+  /* Verdicts. Low risk: two nods and a calm glow. Suspicious: a confused sideways tilt.
+     High risk: a "no" head shake twice and a body shake. */
+  .robo[data-state="result"][data-tone="ok"] .robo__head-motion {
+    animation: robo-nod 1.4s ease-in-out 0.1s 1 both, robo-look 6s ease-in-out 1.6s infinite;
+  }
+  .robo[data-state="result"][data-tone="ok"] .robo__bloom {
+    animation-duration: 6s;
+  }
+  .robo[data-state="result"][data-tone="warn"] .robo__head-motion {
+    animation: robo-confused 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .robo[data-state="result"][data-tone="risk"] .robo__head-motion {
+    animation: robo-no 1.6s ease-in-out 0.1s 2;
+  }
+  .robo[data-state="result"][data-tone="risk"] .robo__motion {
+    animation: robo-shake 0.6s ease-in-out 0.1s 2;
+  }
+
+  /* Eye lights sit over the PNG's eyes, inside the head layer so they move with it.
+     They composite normally inside the screen-blended group, so a green or amber
+     light really replaces the red. */
+  .robo__eyes {
+    --eye-rgb: 255 23 68;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .robo[data-tone="ok"] .robo__eyes { --eye-rgb: 53 214 163; }
+  .robo[data-tone="warn"] .robo__eyes { --eye-rgb: 255 176 32; }
+  .robo__eye {
+    position: absolute;
+    top: 19.6%;
+    width: 15.5%;
+    height: 13.6%;
+    border-radius: 50%;
+    background: radial-gradient(
+      closest-side,
+      #ffffff 0%,
+      rgb(var(--eye-rgb) / 1) 30%,
+      rgb(var(--eye-rgb) / 1) 66%,
+      rgb(var(--eye-rgb) / 0.55) 82%,
+      transparent 100%
+    );
+    box-shadow: 0 0 24px 7px rgb(var(--eye-rgb) / 0.5);
+    opacity: 0;
+  }
+  .robo__eye--left { left: 24.8%; }
+  .robo__eye--right { left: 46.4%; }
+  .robo[data-state="typing"] .robo__eye {
+    animation: robo-eye-on 0.3s ease forwards;
+  }
+  .robo[data-speaking] .robo__eye {
+    animation: robo-eye-talk 0.42s ease-in-out infinite;
+  }
+  .robo[data-state="scanning"] .robo__eye {
+    animation: robo-eye-scan 0.3s ease-in-out infinite;
+  }
+  .robo[data-state="result"] .robo__eye {
+    animation:
+      robo-eye-on 0.5s ease-out forwards,
+      robo-eye-breathe 2.6s ease-in-out 0.5s infinite;
+  }
+  .robo[data-state="result"][data-tone="risk"] .robo__eye {
+    animation: robo-eye-alarm 1.6s linear forwards;
+  }
+
+  /* Voice meter: the robot has no drawn mouth, so five bars glow in the lower face while it speaks. */
+  .robo__voice {
+    position: absolute;
+    left: 43.5%;
+    top: 35.4%;
+    display: flex;
+    align-items: center;
+    gap: 0.9%;
+    width: 11%;
+    height: 3.6%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .robo__voice span {
+    flex: 1;
+    height: 100%;
+    border-radius: 999px;
+    background: rgb(255 92 122);
+    box-shadow: 0 0 6px 1px rgb(255 23 68 / 0.75);
+    transform: scaleY(0.25);
+  }
+  .robo[data-speaking] .robo__voice {
+    opacity: 1;
+  }
+  .robo[data-speaking] .robo__voice span {
+    animation: robo-voice 0.38s ease-in-out infinite;
+  }
+  .robo[data-speaking] .robo__voice span:nth-child(2) { animation-delay: -0.12s; }
+  .robo[data-speaking] .robo__voice span:nth-child(3) { animation-delay: -0.26s; }
+  .robo[data-speaking] .robo__voice span:nth-child(4) { animation-delay: -0.05s; }
+  .robo[data-speaking] .robo__voice span:nth-child(5) { animation-delay: -0.2s; }
+}
+
+/* Neon-red highlighted heading text. */
+@utility text-accent-gradient {
+  background-image: linear-gradient(100deg, var(--color-brand-300) 0%, var(--accent-red) 40%, var(--accent-red-bright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@utility reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-500) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
