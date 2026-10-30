@@ -12,18 +12,19 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * SG16 Identifier — persistence layer.
+ * Persistence layer.
  *
- * Small, deliberate schema (blueprint §7): reports, evidence, findings,
- * product catalogue, provider usage/cost, feedback, business entitlements,
- * service flags (emergency switch) and audit events.
+ * Small, deliberate schema: reports, evidence, findings, product catalogue,
+ * provider usage/cost, feedback, business entitlements, service flags
+ * (emergency switch) and audit events. No table or column is tied to a
+ * vendor; catalogue and connector data are operator-owned.
  */
 
 export const verificationReports = pgTable(
   "verification_reports",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    /** Unguessable public reference, e.g. SG16-4KQ2-9MXT */
+    /** Unguessable public reference, e.g. RPT-4KQ2-9MXT (prefix configurable) */
     publicId: varchar("public_id", { length: 32 }).notNull(),
     category: varchar("category", { length: 24 }).notNull(),
     status: varchar("status", { length: 24 }).notNull(),

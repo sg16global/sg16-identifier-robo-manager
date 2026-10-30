@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { loadReport } from "@/lib/db/reports";
-import { REPORT_ID_RE, pageTitle, routeMeta, type PageMeta } from "@/lib/seo";
+import { identity, identityJson, reportIdPattern } from "@/lib/identity";
+import { defaultDescription, pageTitle, routeMeta, type PageMeta } from "@/lib/seo";
 import { VERDICT_LABEL } from "@/lib/types";
 
 /** A report page's title names its verdict, read from the report store. */
@@ -9,7 +10,7 @@ async function metaFor(pathname: string): Promise<PageMeta> {
   const match = /^\/report\/([^/]+)\/?$/.exec(pathname);
   if (!match) return meta;
   const publicId = decodeURIComponent(match[1]).trim().toUpperCase();
-  if (!REPORT_ID_RE.test(publicId)) return meta;
+  if (!reportIdPattern().test(publicId)) return meta;
   try {
     const report = await loadReport(publicId);
     if (!report) return { ...meta, title: pageTitle("Report not found") };
@@ -23,11 +24,18 @@ async function metaFor(pathname: string): Promise<PageMeta> {
   }
 }
 
+/** Escaped for safe embedding inside a <script> block. */
+function jsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 /**
  * Serves the single-page app's index.html for a page URL, with that page's
- * title, description and robots directive written in, so crawlers and link
- * previews see them without running JavaScript. Paths no page renders get
- * HTTP 404 (the app shows its not-found page).
+ * title, description, robots directive and open-graph tags written in — so
+ * crawlers and link previews see them without running JavaScript — plus the
+ * deployment's resolved identity as a JSON script block the app reads at
+ * boot (src/main.tsx). Paths no page renders get HTTP 404 (the app shows its
+ * not-found page).
  */
 export async function renderPage(request: Request, url: URL): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -45,9 +53,26 @@ export async function renderPage(request: Request, url: URL): Promise<Response> 
   if (meta.robots.startsWith("noindex")) headers.set("x-robots-tag", "noindex, nofollow");
   if (request.method === "HEAD") return new Response(null, { status: meta.status, headers });
 
+  const id = identity();
+  const canonical = id.siteUrl ? `${id.siteUrl}${url.pathname === "/" ? "/" : url.pathname}` : "";
+  const ogTitle = meta.title;
+  const ogDescription = meta.description || defaultDescription();
+  const identityScript = `<script id="app-identity" type="application/json">${jsonForScript(identityJson())}</script>`;
+
   return new HTMLRewriter()
     .on("title", { element: (el) => void el.setInnerContent(meta.title) })
     .on('meta[name="description"]', { element: (el) => void el.setAttribute("content", meta.description) })
     .on('meta[name="robots"]', { element: (el) => void el.setAttribute("content", meta.robots) })
+    .on('meta[name="keywords"]', { element: (el) => void el.setAttribute("content", id.keywords) })
+    .on('meta[property="og:title"]', { element: (el) => void el.setAttribute("content", ogTitle) })
+    .on('meta[property="og:description"]', { element: (el) => void el.setAttribute("content", ogDescription) })
+    .on('meta[property="og:site_name"]', { element: (el) => void el.setAttribute("content", id.appName) })
+    .on('meta[property="og:url"]', {
+      element: (el) => {
+        if (canonical) el.setAttribute("content", canonical);
+        else el.remove();
+      },
+    })
+    .on("head", { element: (el) => void el.append(identityScript, { html: true }) })
     .transform(new Response(shell.body, { status: meta.status, headers }));
 }

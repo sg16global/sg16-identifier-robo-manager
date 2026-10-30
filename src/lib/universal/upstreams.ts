@@ -4,21 +4,22 @@ import { afterResponse } from "@/lib/request-scope";
 import { setting } from "@/lib/settings";
 
 /**
- * Vitex upstream proxy — any company's HTTP API behind one key.
+ * Upstream proxy — any HTTP API, anywhere, behind one gateway key.
  *
- * VITEX_UPSTREAMS (JSON) names each upstream an API key holder may reach:
+ * API_UPSTREAMS (JSON) names each upstream an API key holder may reach:
  *
- *   { "crm": { "baseUrl": "https://api.acme.com/v2",
- *              "auth": { "type": "bearer", "secretEnv": "ACME_CRM_TOKEN" },
- *              "headers": { "x-tenant": "sg16" }, "methods": ["GET", "POST"] } }
+ *   { "crm": { "baseUrl": "https://crm.example.internal/v2",
+ *              "auth": { "type": "bearer", "secretEnv": "CRM_TOKEN" },
+ *              "headers": { "x-tenant": "ops" }, "methods": ["GET", "POST"] } }
  *
  * `/v1/proxy/crm/customers/42?expand=orders` then forwards to
- * `https://api.acme.com/v2/customers/42?expand=orders` with the upstream's own
- * credential attached here, on the server. Callers never see that credential,
- * and their own gateway key, cookies and client IP headers are never forwarded.
- * Paths cannot climb above baseUrl and redirects are returned rather than
- * followed. Any host the operator lists is reachable, public or internal.
- * For any API that is not configured here, see /v1/forward.
+ * `https://crm.example.internal/v2/customers/42?expand=orders` with the
+ * upstream's own credential attached here, on the server. Callers never see
+ * that credential, and their own gateway key, cookies and client IP headers
+ * are never forwarded. Paths cannot climb above baseUrl and redirects are
+ * returned rather than followed. Any host the operator lists is reachable,
+ * public or internal, in any region. For any API that is not configured
+ * here, see /v1/forward.
  */
 
 type Auth =
@@ -57,7 +58,7 @@ const DROP_REQUEST_HEADERS = new Set([
   "content-length", "cookie", "origin", "referer",
   "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "true-client-ip", "forwarded", "via",
 ]);
-const DROP_REQUEST_PREFIXES = ["cf-", "sec-", "x-vitex-"];
+const DROP_REQUEST_PREFIXES = ["cf-", "sec-", "x-gateway-"];
 /** Credential headers: dropped for configured upstreams (their own credential is attached instead). */
 export const CREDENTIAL_HEADERS = new Set(["authorization", "x-api-key", "api-key", "x-goog-api-key"]);
 
@@ -111,13 +112,13 @@ let cache: { specs: UpstreamSpec[]; statuses: UpstreamStatus[] } | null = null;
 function build() {
   const specs: UpstreamSpec[] = [];
   const statuses: UpstreamStatus[] = [];
-  const raw = env("VITEX_UPSTREAMS");
+  const raw = env("API_UPSTREAMS");
   if (!raw) return { specs, statuses };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    statuses.push({ id: "VITEX_UPSTREAMS", label: "configuration", methods: [], enabled: false, reason: `not valid JSON (${(error as Error).message})` });
+    statuses.push({ id: "api-upstreams", label: "configuration", methods: [], enabled: false, reason: `API_UPSTREAMS is not valid JSON (${(error as Error).message})` });
     return { specs, statuses };
   }
   const entries: Array<[string, Record<string, unknown>]> = Array.isArray(parsed)
@@ -286,6 +287,6 @@ export function forward(request: Request, upstream: UpstreamSpec, target: URL): 
     headers: upstreamHeaders(request, upstream),
     timeoutMs: upstream.timeoutMs,
     costUsd: upstream.costPerCallUsd,
-    tag: ["x-vitex-upstream", upstream.id],
+    tag: ["x-gateway-upstream", upstream.id],
   });
 }

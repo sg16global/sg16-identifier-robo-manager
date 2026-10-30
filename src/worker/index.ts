@@ -1,3 +1,4 @@
+import { initServerIdentity } from "@/lib/identity-server";
 import { runInRequestScope } from "@/lib/request-scope";
 import { preflight } from "@/lib/universal/gateway";
 import { renderPage } from "@/worker/html";
@@ -9,7 +10,7 @@ import * as engage from "@/worker/routes/engage";
 import * as health from "@/worker/routes/health";
 import * as image from "@/worker/routes/image";
 import * as meta from "@/worker/routes/meta";
-import * as pioneers from "@/worker/routes/pioneers";
+import * as showcase from "@/worker/routes/showcase";
 import * as report from "@/worker/routes/report";
 import * as stats from "@/worker/routes/stats";
 import * as verify from "@/worker/routes/verify";
@@ -31,7 +32,7 @@ const API: Route[] = [
   compileRoute("/api/meta", meta),
   compileRoute("/api/stats", stats),
   compileRoute("/api/catalog", catalog),
-  compileRoute("/api/pioneers", pioneers),
+  compileRoute("/api/showcase", showcase),
   compileRoute("/api/verify", verify),
   compileRoute("/api/engage", engage),
   compileRoute("/api/admin", admin),
@@ -51,13 +52,14 @@ const API: Route[] = [
 export default {
   fetch(request, _env, ctx) {
     return runInRequestScope(ctx, async () => {
+      initServerIdentity();
       const url = new URL(request.url);
       // OpenAI-style base URL for the universal API: <origin>/v1 is /api/v1.
       const path = url.pathname === "/v1" || url.pathname.startsWith("/v1/") ? `/api${url.pathname}` : url.pathname;
       const gatewayPath = path === "/api/v1" || path.startsWith("/api/v1/");
       // The caller names its own server: forward the request untouched, any path, any payload.
-      if (gatewayPath && request.headers.has("x-vitex-base-url")) return passthrough(request, path);
-      // Browser preflights carry no x-vitex-* values; answer them for every /v1 path.
+      if (gatewayPath && request.headers.has("x-gateway-base-url")) return passthrough(request, path);
+      // Browser preflights carry no x-gateway-* values; answer them for every /v1 path.
       if (gatewayPath && request.method === "OPTIONS") return preflight(request);
       if (path === "/api" || path.startsWith("/api/")) return dispatch(API, request, path);
       return renderPage(request, url);

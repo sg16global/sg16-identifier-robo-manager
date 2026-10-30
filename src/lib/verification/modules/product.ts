@@ -1,10 +1,12 @@
 import { db } from "@/db";
 import { productCatalog } from "@/db/schema";
+import { identity } from "@/lib/identity";
 import type { EvidenceSource, ProviderCall, ReportFinding, RetailLink } from "@/lib/types";
-import { CATALOG_SEED, matchCatalog, type CatalogEntry } from "@/lib/identifiers/catalog";
+import { matchCatalog, parseCatalogConfig, type CatalogEntry } from "@/lib/identifiers/catalog";
 import { inspectBarcode, inspectImei, modelCodesInText, normalizeModel } from "@/lib/identifiers/checksums";
 import { aiStructured } from "@/lib/providers/ai";
-import { SCAM_SIGNALS } from "@/lib/verification/lexicon";
+import { setting } from "@/lib/settings";
+import { allScamSignals } from "@/lib/verification/lexicon";
 import { StepTimer, extractPrices, type ModuleInput, type ModuleOutput } from "@/lib/verification/module";
 import { LIMITATION_LIBRARY, makeFinding, score } from "@/lib/verification/scoring";
 import { newId, round, truncate } from "@/lib/utils";
@@ -59,12 +61,12 @@ function specValues(text: string, re: RegExp, scale?: Record<string, number>): n
   });
 }
 
-async function loadCatalog(): Promise<{ entries: CatalogEntry[]; fromDb: boolean }> {
+async function loadCatalog(): Promise<{ entries: CatalogEntry[]; origin: "database" | "config" }> {
   try {
     const rows = await db.select().from(productCatalog).limit(400);
     if (rows.length) {
       return {
-        fromDb: true,
+        origin: "database",
         entries: rows.map((r) => ({
           brand: r.brand,
           model: r.model,
@@ -79,9 +81,9 @@ async function loadCatalog(): Promise<{ entries: CatalogEntry[]; fromDb: boolean
       };
     }
   } catch {
-    /* fall through to the bundled seed */
+    /* fall through to the configured records */
   }
-  return { entries: CATALOG_SEED, fromDb: false };
+  return { entries: parseCatalogConfig(), origin: "config" };
 }
 
 function priceValue(raw: string): number | null {
@@ -105,10 +107,11 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
     model: string | null;
     matched: ReturnType<typeof matchCatalog>[number] | null;
     alternatives: ReturnType<typeof matchCatalog>;
-    catalogFromDb: boolean;
+    catalogOrigin: "database" | "config";
+    catalogSize: number;
   } = {
     imei: { found: false }, barcode: { found: false }, serial: null, model: null,
-    matched: null, alternatives: [], catalogFromDb: false,
+    matched: null, alternatives: [], catalogOrigin: "config", catalogSize: 0,
   };
 
   await timer.run("Extract product identifiers", "Locate IMEI, GTIN/barcode, model code and serial candidates.", async () => {
@@ -178,23 +181,34 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
     return "done";
   });
 
-  await timer.run("Match against the product catalogue", "Compare normalised identifiers with known brand/model records.", async () => {
-    const { entries, fromDb } = await loadCatalog();
-    ctx.catalogFromDb = fromDb;
+  await timer.run("Match against the product catalogue", "Compare normalised identifiers with the operator's records.", async () => {
+    const { entries, origin } = await loadCatalog();
+    ctx.catalogOrigin = origin;
+    ctx.catalogSize = entries.length;
     providers.push({
-      provider: "catalog", operation: fromDb ? "postgres:product_catalog" : "bundled-seed",
+      provider: "catalog", operation: origin === "database" ? "postgres:product_catalog" : "config:PRODUCT_CATALOG",
       status: "ok", latencyMs: 0, costUsd: 0,
-      detail: `${entries.length} catalogue records loaded from ${fromDb ? "PostgreSQL" : "the bundled starter dataset"}.`,
+      detail: entries.length
+        ? `${entries.length} catalogue records loaded from ${origin === "database" ? "the database" : "the deployment configuration"}.`
+        : "No catalogue records are configured in this deployment.",
     });
     const query = [ctx.model ?? "", ctx.barcode?.value ?? "", text].filter(Boolean).join(" ");
     ctx.alternatives = matchCatalog(query, entries, 4);
     ctx.matched = ctx.alternatives[0] ?? null;
 
+    if (!entries.length) {
+      findings.push(makeFinding("catalog", "No product catalogue is configured",
+        "This deployment maintains no catalogue records yet (PRODUCT_CATALOG / the operator console), so identifier attribution could not be checked. Structural checks — checksums, specification mathematics and listing-language signals — still ran.",
+        "unknown", 0.6));
+      limitations.push("No product catalogue is configured in this deployment; attribution is limited to structural checks.");
+      return "done";
+    }
+
     if (!ctx.matched) {
       findings.push(makeFinding("catalog", "No catalogue record matched",
-        `Nothing in the ${entries.length}-record catalogue matched "${truncate(query, 80)}". The catalogue is a starter dataset, not a manufacturer feed — absence here is not evidence of counterfeiting.`,
+        `Nothing in the ${entries.length}-record catalogue matched "${truncate(query, 80)}". The catalogue holds the records this deployment's operator maintains — absence here is not evidence of counterfeiting.`,
         "unknown", 0.6));
-      limitations.push("The internal catalogue covers a limited set of popular electronics. A non-match means the record is absent, not that the product does not exist.");
+      limitations.push("The catalogue only covers the records this deployment's operator maintains. A non-match means the record is absent, not that the product does not exist.");
       return "done";
     }
 
@@ -298,7 +312,7 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
       }
     }
 
-    const listingHits = SCAM_SIGNALS.filter((s) => s.re.test(text));
+    const listingHits = allScamSignals().filter((s) => s.re.test(text));
     for (const h of listingHits) {
       findings.push(makeFinding("seller", h.label, h.why, h.weight >= 0.2 ? "risk" : "warning", h.weight * 0.9));
     }
@@ -351,20 +365,33 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
       productRef: `${entry.brand}-${entry.model}`.replace(/\s+/g, "-").toLowerCase(),
       disclosed: true,
     });
-    retailLinks.push({
-      retailer: "Authorised retailer search",
-      label: `Find authorised sellers of ${entry.brand} ${entry.model}`,
-      destination: `https://www.google.com/search?q=${encodeURIComponent(`"${entry.brand} ${entry.model}" authorised retailer site:${new URL(entry.officialUrl).hostname || entry.brand.toLowerCase() + ".com"}`)}`,
-      productRef: `${entry.brand}-${entry.model}-retailers`.replace(/\s+/g, "-").toLowerCase(),
-      disclosed: true,
-    });
+    // "Find authorised sellers" links through the operator's configured search
+    // URL template (RETAILER_SEARCH_URL, with a {{query}} placeholder); with
+    // none configured no external search link is offered.
+    const searchTemplate = setting("RETAILER_SEARCH_URL");
+    if (searchTemplate?.includes("{{query}}")) {
+      let officialHost = "";
+      try {
+        officialHost = entry.officialUrl ? new URL(entry.officialUrl).hostname : "";
+      } catch {
+        officialHost = "";
+      }
+      const queryText = `"${entry.brand} ${entry.model}" authorised retailer${officialHost ? ` site:${officialHost}` : ""}`;
+      retailLinks.push({
+        retailer: "Authorised retailer search",
+        label: `Find authorised sellers of ${entry.brand} ${entry.model}`,
+        destination: searchTemplate.replace(/\{\{query\}\}/g, encodeURIComponent(queryText)),
+        productRef: `${entry.brand}-${entry.model}-retailers`.replace(/\s+/g, "-").toLowerCase(),
+        disclosed: true,
+      });
+    }
   }
 
   limitations.push(LIMITATION_LIBRARY.serialInsufficient, LIMITATION_LIBRARY.physicalInspection, LIMITATION_LIBRARY.pointInTime);
-  if (!ctx.catalogFromDb) {
-    limitations.push("The catalogue used was the bundled starter dataset, not a licensed manufacturer or GS1 feed.");
+  if (ctx.catalogSize && ctx.catalogOrigin === "config") {
+    limitations.push("The catalogue used was the deployment's configured records, not a licensed manufacturer or standards-body feed.");
   }
-  limitations.push("SG16 Identifier is not affiliated with, endorsed by, or acting on behalf of any manufacturer named in this report.");
+  limitations.push(`${identity().appName} is not affiliated with, endorsed by, or acting on behalf of any manufacturer named in this report.`);
 
   const scored = score({
     findings,
@@ -384,7 +411,11 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
     : "Unable to verify authenticity from the information supplied";
 
   const summary = [
-    entry ? `${entry.brand} ${entry.model} (${entry.category}).` : "No catalogue record matched.",
+    entry
+      ? `${entry.brand} ${entry.model} (${entry.category}).`
+      : ctx.catalogSize
+        ? "No catalogue record matched."
+        : "No product catalogue is configured in this deployment.",
     headline + ".",
     scored.explanation,
     ctx.imei.found ? `IMEI checksum ${ctx.imei.checksumValid ? "valid" : "INVALID"}.` : "",
@@ -400,10 +431,12 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
         "Ask the seller for a dated photo of the item next to a handwritten reference; refusal is itself a signal.",
       ]
     : [
-        "Supply the exact model code printed on the device, box or invoice (for example SM-S928B or A3113).",
+        "Supply the exact model code printed on the device, box or invoice.",
         "If you have a barcode, enter the digits below the bars so the GS1 check digit can be validated.",
         "Check the manufacturer's own product page for the specification list before paying.",
-        "Flag this report if you believe the catalogue should include this model; SG16 adds records on review.",
+        ctx.catalogSize
+          ? "Flag this report if you believe the catalogue should include this model; the operator adds records on review."
+          : "Ask this deployment's operator to add the model to the catalogue (PRODUCT_CATALOG or the operator console) so future checks can attribute identifiers.",
       ];
 
   return {
@@ -424,7 +457,8 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
       modelCode: ctx.model,
       matchedEntry: entry ? { brand: entry.brand, model: entry.model, category: entry.category, officialUrl: entry.officialUrl, specs: entry.specs, identifiers: entry.identifiers } : null,
       alternatives: ctx.alternatives.slice(1).map((a) => ({ brand: a.entry.brand, model: a.entry.model, score: round(a.score), matchedOn: a.matchedOn })),
-      catalogFromDb: ctx.catalogFromDb,
+      catalogFromDb: ctx.catalogOrigin === "database",
+      catalogSize: ctx.catalogSize,
       supportScore: scored.supportScore,
       riskScore: scored.riskScore,
     },
@@ -437,25 +471,28 @@ export async function verifyProduct(input: ModuleInput): Promise<ModuleOutput> {
   };
 }
 
+/** Seeds the catalogue table from PRODUCT_CATALOG (once, when the table is empty). */
 export async function ensureCatalogSeeded(): Promise<number> {
   try {
+    const configured = parseCatalogConfig();
+    if (!configured.length) return 0;
     const existing = await db.select({ id: productCatalog.id }).from(productCatalog).limit(1);
     if (existing.length) return 0;
     await db.insert(productCatalog).values(
-      CATALOG_SEED.map((e) => ({
+      configured.map((e) => ({
         id: newId(),
-        brand: e.brand,
-        model: e.model,
-        family: e.family ?? null,
-        category: e.category,
+        brand: e.brand.slice(0, 96),
+        model: e.model.slice(0, 160),
+        family: e.family?.slice(0, 120) ?? null,
+        category: e.category.slice(0, 64),
         identifiers: e.identifiers,
         specs: e.specs,
         knownCounterfeitSignals: e.knownCounterfeitSignals,
         officialUrl: e.officialUrl,
-        source: e.source,
+        source: e.source.slice(0, 64),
       })),
     );
-    return CATALOG_SEED.length;
+    return configured.length;
   } catch {
     return 0;
   }

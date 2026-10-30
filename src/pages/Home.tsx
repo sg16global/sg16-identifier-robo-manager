@@ -4,7 +4,8 @@ import type { EngineStats } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 import { VerifyConsole } from "@/components/verify-console";
 import { RoboManager } from "@/components/robo-manager";
-import { PioneersSection } from "@/components/pioneers-section";
+import { ShowcaseSection } from "@/components/showcase-section";
+import { identity } from "@/lib/identity";
 import { GlobalPresence } from "@/components/global-presence";
 import { LaunchChecklist, Marquee, NewsletterForm, ProviderStatus } from "@/components/interactive";
 import {
@@ -60,7 +61,7 @@ const SERVICES = [
     icon: IconNews,
     bullets: [
       "Decompose a post into atomic, checkable claims instead of judging the whole thing at once.",
-      "Retrieve published ClaimReviews through the Google Fact Check Tools API.",
+      "Retrieve published ClaimReviews through configured fact-check connectors.",
       "Rate every retrieved source: official, reputable, mixed or unrated.",
       "Distinguish supported, contradicted, misleading, disputed and simply unresolved.",
     ],
@@ -96,7 +97,7 @@ const SERVICES = [
   {
     id: "business",
     n: "05",
-    title: "SG16 Business Verification",
+    title: "Business Verification",
     strap: "Bulk checks, monitoring and an API for organisations.",
     href: "/business",
     icon: IconCpu,
@@ -181,14 +182,14 @@ const REVENUE = [
   { title: "Display advertising", where: "Educational articles and public information pages", how: "An approved advertising provider, subject to its content policies. Added only once original content, a privacy policy and clear navigation exist.", rule: "No ad may ever resemble a verification result or a warning banner." },
   { title: "Affiliate partnerships", where: "Product comparison pages and buying guides", how: "A commission when an eligible referral results in a purchase. Every click is logged in affiliate_events and disclosed at the point of the link.", rule: "A seller never influences a verdict, a confidence figure or a ranking." },
   { title: "Business services", where: "Retailers, marketplaces, importers, repair shops", how: "Batch checks, private dashboards, monitoring, exports, higher limits and support — provisioned manually against a contract.", rule: "Payments buy capacity and workflow, never more favourable conclusions." },
-  { title: "SG16 Identifier API", where: "Other sites, developers and platforms", how: "API keys with usage-based billing and contractual limits. Started only once per-request cost is measurable and provider licences permit redistribution.", rule: "No provider is resold unless its terms allow it." },
+  { title: "Verification API", where: "Other sites, developers and platforms", how: "API keys with usage-based billing and contractual limits. Started only once per-request cost is measurable and provider licences permit redistribution.", rule: "No provider is resold unless its terms allow it." },
 ];
 
 const ROADMAP = [
   { phase: "Phase 0", window: "Week 1", title: "Planning & validation", items: ["Confirm initial service scope", "UI system and page map", "Repository, environment, provider shortlist", "Evidence schema, privacy and spend limits"], exit: "Approved specification and a tested technical plan." },
   { phase: "Phase 1", window: "Weeks 2–4", title: "Working MVP", items: ["Homepage, universal input, report UI", "Backend, PostgreSQL schema, validation", "Fact-check retrieval and safe URL reputation", "Report IDs, citations, usage logging, admin view"], exit: "Real end-to-end checks against live provider data." },
   { phase: "Phase 2", window: "Weeks 5–6", title: "Private testing", items: ["True, false, misleading and unresolved fixtures", "Known safe and unsafe URLs", "Latency, false positives, per-check cost", "Mobile, accessibility, deletion flows"], exit: "Predefined quality and safety thresholds met." },
-  { phase: "Phase 3", window: "Weeks 7–8", title: "Public launch", items: ["Connect sg16identifier.com, enforce HTTPS", "Publish privacy, terms, limitations, corrections", "Monitoring, backups, support contact", "Release with transparent quotas"], exit: "Health checks pass, costs bounded, users can report problems." },
+  { phase: "Phase 3", window: "Weeks 7–8", title: "Public launch", items: ["Connect the production domain, enforce HTTPS", "Publish privacy, terms, limitations, corrections", "Monitoring, backups, support contact", "Release with transparent quotas"], exit: "Health checks pass, costs bounded, users can report problems." },
   { phase: "Phase 4", window: "After launch", title: "Expansion & revenue", items: ["Product catalogues and manufacturer integrations", "Media provenance and image analysis", "Original editorial content, advertising eligibility", "Business accounts and a metered API"], exit: "Each expansion has measurable value and sustainable unit economics." },
 ];
 
@@ -216,16 +217,19 @@ const RISKS = [
   ["Legal or reputational complaints", "Neutral wording, evidence-first reports, review and appeal process, no accusations."],
 ];
 
-const FAQ = [
-  { q: "Is SG16 Identifier free?", a: "Yes for the public. Core verification of products, news, websites and media does not require a subscription or an account. The platform is funded by disclosed advertising, affiliate referrals and paid business services — none of which can influence a result." },
-  { q: "Can you prove an item is genuine?", a: "No, and any service that claims otherwise is overstating. SG16 can prove that an identifier is mathematically valid, that a model code belongs to a documented product, and that a specification was contradicted. Physical authenticity still requires inspection, weight measurement, manufacturer diagnostics or an authorised service centre." },
+function faqItems() {
+  const { appName } = identity();
+  return [
+  { q: `Is ${appName} free?`, a: "Core verification of products, news, websites and media does not require a subscription or an account on this deployment. Where the service is monetised — advertising, referrals or business services — that is disclosed, and the service operates independently of any check's outcome: no payment can influence a result." },
+  { q: "Can you prove an item is genuine?", a: `No, and any service that claims otherwise is overstating. ${appName} can prove that an identifier is mathematically valid, that a model code belongs to a documented product, and that a specification was contradicted. Physical authenticity still requires inspection, weight measurement, manufacturer diagnostics or an authorised service centre.` },
   { q: "What does 'Unable to verify' mean?", a: "It means the evidence available was not sufficient to reach a conclusion, and the engine abstained rather than guessing. It is not a soft way of saying 'fake'. The report lists exactly which providers were unavailable and what you can check yourself." },
   { q: "Do you store what I submit?", a: "Reports, evidence and findings are stored so a result can be re-opened and reviewed, with a configured retention window after which they are deleted. Uploaded files are analysed in memory, hashed for deduplication and never published. Only a fingerprinted hash of the connection is recorded for rate limiting — never a raw IP address." },
-  { q: "Which external sources do you use?", a: "The Google Fact Check Tools API for published claim reviews, a licensed web search provider for corroborating sources, Google Web Risk for commercial URL reputation, public DNS and TLS for domain intelligence, and an internal normalised product catalogue. Each sits behind its own adapter; disabled adapters are reported in the affected results." },
+  { q: "Which external sources do you use?", a: "Whatever the deployment configures: fact-check connectors for published claim reviews, search connectors for corroborating sources, reputation connectors for commercial URL risk, public DNS and TLS for domain intelligence, and a normalised product catalogue. Each sits behind its own adapter; unconfigured or disabled adapters are reported honestly in the affected results." },
   { q: "Is an AI model deciding the answer?", a: "No. The verdict is produced by a deterministic scorer over named findings and retrieved evidence. Where an AI model is configured it decomposes claims, compares supplied evidence and drafts the human-readable summary — it may not introduce a source, and it cannot raise a confidence figure on its own." },
   { q: "What if a result is wrong?", a: "Flag it from the report page. Corrections are queued for human review, and where the evidence was wrong the report is republished with the correction attached rather than quietly deleted." },
   { q: "Do you have an API?", a: "An internal API foundation exists today: POST /api/verify, GET /api/report/{id} and the metadata endpoints. Customer API keys and billing are a post-launch phase, started only once per-request cost is measurable and every provider licence permits redistribution." },
 ];
+}
 
 interface StatsPayload {
   stats: EngineStats;
@@ -263,6 +267,7 @@ function Reading() {
 }
 
 export default function HomePage() {
+  const id = identity();
   const payload = useEngineStats();
   const stats = payload?.stats ?? null;
   const activeProviders = payload?.activeProviders ?? null;
@@ -283,7 +288,7 @@ export default function HomePage() {
             <div className="lg:row-span-2 xl:row-span-1">
               <Reveal>
                 <div className="flex flex-wrap items-center gap-3">
-                  <TonalChip tone="brand">sg16identifier.com · v1.0</TonalChip>
+                  <TonalChip tone="brand">{`${id.siteUrl.replace(/^https?:\/\//, "") || id.appName} · v1.0`}</TonalChip>
                   <TonalChip tone="neutral">free for the public</TonalChip>
                   <TonalChip tone="ok">
                     {activeProviders !== null ? `${activeProviders} adapters active` : payload ? "adapter status unavailable" : "checking adapters"}
@@ -300,7 +305,7 @@ export default function HomePage() {
 
               <Reveal delay={170}>
                 <p className="mt-7 max-w-xl text-[17px] leading-relaxed text-mist-400">
-                  SG16 Identifier is one verification engine for four problems that look different and
+                  {id.appName} is one verification engine for four problems that look different and
                   behave the same: counterfeit products, unverified news, cloned shops and synthetic
                   media. Submit text, a link, an identifier or an image and receive a structured
                   report — finding, evidence, source, confidence, limitation, next step.
@@ -327,7 +332,7 @@ export default function HomePage() {
 
               <Reveal delay={300}>
                 <p className="mt-8 max-w-lg border-l-2 border-brand-500/50 pl-4 text-[13px] leading-relaxed text-mist-500">
-                  The product rule: SG16 never says an item is real or fake because a model guessed.
+                  The product rule: {id.appName} never says an item is real or fake because a model guessed.
                   It separates what was checked, what was contradicted, what remains unknown — and
                   abstains when the evidence does not support a conclusion.
                 </p>
@@ -344,7 +349,7 @@ export default function HomePage() {
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-500/70 to-transparent" />
                 <div className="relative border-b border-brand-700/50 bg-ink-950/60 px-5 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="rule-label text-mist-400">SG16 verification engine</span>
+                    <span className="rule-label text-mist-400">{id.appName} verification engine</span>
                     {!stats ? (
                       <span className="flex items-center gap-1.5" title="Reading figures from PostgreSQL">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-mist-600" />
@@ -430,13 +435,13 @@ export default function HomePage() {
       {/* ============================== GLOBAL PRESENCE ============================== */}
       <GlobalPresence />
 
-      {/* ============================== AI PIONEERS ============================== */}
-      <PioneersSection />
+      {/* ============================== SHOWCASE ============================== */}
+      <ShowcaseSection />
 
       <div className="relative mt-16">
         <Marquee
           items={[
-            "IMEI Luhn validation", "GS1 modulo-10 barcode checks", "Google Fact Check Tools API",
+            "IMEI Luhn validation", "GS1 modulo-10 barcode checks", "Fact-check connector queries",
             "C2PA / Content Credentials detection", "DNS · SOA · NS · MX · SPF · DMARC",
             "TLS certificate age & SAN count", "SSRF-guarded page fetching", "Brand impersonation & homoglyph folding",
             "JPEG marker path & quantisation tables", "PNG tEXt generator signatures", "Shannon entropy profiling",
@@ -483,7 +488,7 @@ export default function HomePage() {
               </p>
               <p className="mt-4 max-w-md text-[15px] leading-relaxed text-mist-400">
                 Today that question is answered by five unrelated tools, each with its own interface,
-                each pretending its single signal is conclusive. SG16 answers it once.
+                each pretending its single signal is conclusive. {id.appName} answers it once.
               </p>
             </div>
           </Reveal>
@@ -577,7 +582,7 @@ export default function HomePage() {
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-mist-500">
               A serial number cannot prove a phone is genuine, because counterfeiters copy valid
               identifiers from authentic units. A missing fact-check cannot prove a story is true. So
-              SG16 reports what the evidence supports — and abstains when it does not.
+              {id.appName} reports what the evidence supports — and abstains when it does not.
             </p>
           </Reveal>
 
@@ -656,7 +661,7 @@ export default function HomePage() {
             </div>
             <pre className="overflow-x-auto scrollbar-thin p-6 font-mono text-[12px] leading-relaxed text-mist-400">{`{
   "report_id":   "generated-unique-id",
-  "public_id":   "SG16-4KQ2-9MXT",
+  "public_id":   "${id.reportIdPrefix}-4KQ2-9MXT",
   "category":    "claim",
   "status":      "inconclusive",
   "confidence":  null,
@@ -732,11 +737,11 @@ export default function HomePage() {
                 </div>
                 <pre className="overflow-x-auto scrollbar-thin p-6 font-mono text-[11.5px] leading-relaxed text-mist-400">{`Verification Engine
 ├── Claim Verification
-│   ├── Fact Check Adapter      (Google ClaimReview)
-│   ├── Search Adapter          (licensed web search)
+│   ├── Fact Check Adapter      (configured connectors)
+│   ├── Search Adapter          (configured connectors)
 │   └── Evidence Comparison     (deterministic scorer)
 ├── Website Verification
-│   ├── Commercial URL Risk     (Web Risk / Safe Browsing)
+│   ├── Commercial URL Risk     (configured reputation connectors)
 │   ├── Domain Intelligence     (DNS · TLS · HTTP probe)
 │   └── Message Lexicon         (scam & deception signals)
 ├── Product Verification
@@ -794,7 +799,7 @@ export default function HomePage() {
                   <p className="rule-label text-brand-400">Sharing is explicit</p>
                   <p className="mt-2 text-[13.5px] leading-relaxed text-mist-500">
                     Reports are private by default. A shareable report uses an unguessable reference
-                    such as SG16-4KQ2-9MXT and is only ever created when the submitter asks for it.
+                    such as {id.reportIdPrefix}-4KQ2-9MXT and is only ever created when the submitter asks for it.
                   </p>
                 </div>
               </div>
@@ -833,7 +838,7 @@ export default function HomePage() {
               Built to accept hostile input.
             </h2>
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-mist-500">
-              SG16 receives untrusted links, uploaded binaries and adversarial text as its normal
+              {id.appName} receives untrusted links, uploaded binaries and adversarial text as its normal
               workload. Security is not a hardening pass — it is the first release.
             </p>
           </Reveal>
@@ -1243,7 +1248,7 @@ export default function HomePage() {
                 </h2>
                 <div className="mt-8 flex flex-col gap-3">
                   <Link href="/legal/limitations" className="group inline-flex items-center gap-2 text-[14px] text-brand-400">
-                    What SG16 cannot prove <IconArrow className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    What {id.appName} cannot prove <IconArrow className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                   <Link href="/legal/corrections" className="group inline-flex items-center gap-2 text-[14px] text-brand-400">
                     Corrections &amp; appeals process <IconArrow className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -1256,7 +1261,7 @@ export default function HomePage() {
             </Reveal>
 
             <div className="divide-y divide-mist-500/12 border-y border-mist-500/12">
-              {FAQ.map((item, i) => (
+              {faqItems().map((item, i) => (
                 <Reveal key={item.q} delay={i * 40}>
                   <details className="group py-5">
                     <summary className="flex cursor-pointer list-none items-start justify-between gap-6 text-[16px] font-medium text-paper-50 transition-colors hover:text-brand-400">
@@ -1291,7 +1296,7 @@ export default function HomePage() {
               <p className="mt-6 max-w-xl text-[15.5px] leading-relaxed text-mist-400">
                 Paste the link you were sent, the claim you cannot confirm, the model number on the
                 box, or drop the image everyone is forwarding. You will get evidence, sources, a
-                confidence figure — and an honest list of what SG16 could not check.
+                confidence figure — and an honest list of what {id.appName} could not check.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/identify" className="glow-accent group inline-flex items-center gap-2 rounded-sm bg-brand-cta px-6 py-3.5 text-[14px] font-semibold text-white transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-brand-cta-hover">

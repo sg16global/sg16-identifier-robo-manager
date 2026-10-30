@@ -1,7 +1,7 @@
 /**
- * SG16 Identifier — shared report contract.
- * Every verification module returns this same core structure (blueprint §6)
- * so the UI, API and database never special-case a category.
+ * Shared report contract.
+ * Every verification module returns this same core structure so the UI, API
+ * and database never special-case a category. Nothing here is vendor-specific.
  */
 
 export type VerificationCategory = "claim" | "website" | "product" | "media";
@@ -168,15 +168,15 @@ export interface EngineStats {
   providerCalls: number;
 }
 
-/** AI Pioneers read live from the SG16 cloud (GET /api/pioneers). */
-export type Pioneer = {
+/** Showcase cards read live from the operator-configured source (GET /api/showcase). */
+export type ShowcaseItem = {
   name: string;
   role: string;
   photo: string;
 };
 
-export type PioneersPayload = {
+export type ShowcasePayload = {
   source: string;
   fetchedAt: string;
-  pioneers: Pioneer[];
+  items: ShowcaseItem[];
 };

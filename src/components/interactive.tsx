@@ -4,7 +4,7 @@ import { IconArrow, IconSeal, Panel, SectionLabel, TonalChip } from "@/component
 /* ------------------------------- launch checklist --------------------------- */
 
 const CHECKLIST = [
-  { id: "domain", label: "Production domain and HTTPS verified", detail: "sg16identifier.com resolves, redirects and serves a valid certificate chain." },
+  { id: "domain", label: "Production domain and HTTPS verified", detail: "The production domain resolves, redirects and serves a valid certificate chain." },
   { id: "db", label: "Database migrations and backup restoration tested", detail: "drizzle-kit push applied, retention job proven, a restore rehearsed end to end." },
   { id: "secrets", label: "API secrets secured and spending alerts configured", detail: "Keys only in the host secret manager; daily budget cap and provider quotas active." },
   { id: "ssrf", label: "URL-fetching and file-upload security tested", detail: "Private-range, redirect-hopping and magic-byte tests all rejected as designed." },

@@ -1,7 +1,7 @@
 import type { VerificationCategory } from "@/lib/types";
 import { inspectBarcode, inspectImei, looksLikeModelNumber, modelCodesInText } from "@/lib/identifiers/checksums";
 import { parseUntrustedUrl } from "@/lib/security/url-guard";
-import { PRODUCT_CATEGORY_RULES, SCAM_SIGNALS, brandsInText } from "@/lib/verification/lexicon";
+import { PRODUCT_CATEGORY_RULES, allScamSignals, brandsInText } from "@/lib/verification/lexicon";
 
 export interface Classification {
   category: VerificationCategory;
@@ -88,7 +88,7 @@ export function classifyInput(
     reasons.push(`Brand terms detected: ${brands.slice(0, 5).join(", ")}.`);
   }
 
-  const scamHits = SCAM_SIGNALS.filter((s) => s.re.test(text));
+  const scamHits = allScamSignals().filter((s) => s.re.test(text));
   if (scamHits.length >= 3) {
     scores.website += 0.35 * Math.min(scamHits.length, 5);
     reasons.push(`${scamHits.length} scam-language signals present, e.g. "${scamHits[0].label}".`);

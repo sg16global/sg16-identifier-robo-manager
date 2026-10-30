@@ -4,14 +4,20 @@ import type { ProviderCall } from "@/lib/types";
 import { newId, round } from "@/lib/utils";
 import { recordSpend } from "@/lib/security/rate-limit";
 import { defaultRoute, enabledProviders, providerStatuses } from "@/lib/universal/providers";
-import { setting } from "@/lib/settings";
+import { dnsConfigured } from "@/lib/security/doh";
+import { connectorStatuses, connectors } from "@/lib/connectors";
+import { envFlag } from "@/lib/settings";
 
 /**
- * Provider registry.
+ * Capability registry.
  *
- * Every external source is an adapter behind this registry so a provider can be
- * replaced without touching the verification modules. Secrets are read only on
- * the server, and every call is metered for cost + latency (blueprint §5, §9).
+ * The engine is organised around *capability slots* (rules, DNS intelligence,
+ * catalogue, fact-checks, search, reputation, certificate transparency, AI
+ * reasoning). Which concrete services fill the external slots is pure
+ * operator configuration — connectors and model providers described in env
+ * JSON (src/lib/connectors.ts, src/lib/universal/providers.ts) — so any API
+ * or server, anywhere, can back any slot without a code change. Secrets are
+ * read only on the server, and every call is metered for cost + latency.
  */
 
 export interface ProviderConfig {
@@ -24,23 +30,33 @@ export interface ProviderConfig {
   docsUrl?: string;
 }
 
-function envFlag(name: string, fallback = true): boolean {
-  const raw = setting(name);
-  if (raw === undefined) return fallback;
-  return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
+function slotStatus(capability: "search" | "factcheck" | "reputation" | "ct", envName: string) {
+  const statuses = connectorStatuses(capability);
+  const broken = statuses.filter((s) => !s.enabled);
+  const ready = connectors(capability);
+  return {
+    enabled: ready.length > 0,
+    reason: statuses.length
+      ? broken.length === statuses.length
+        ? broken.map((b) => `${b.id}: ${b.reason}`).join("; ")
+        : undefined
+      : `${envName} is not configured`,
+    ids: ready.map((c) => c.id),
+    cost: ready[0]?.costPerCallUsd ?? 0,
+  };
 }
 
 export function getProviderConfigs(): ProviderConfig[] {
-  const factCheckKey = setting("GOOGLE_FACTCHECK_API_KEY");
-  const webRiskKey = setting("WEB_RISK_API_KEY") ?? setting("SAFE_BROWSING_API_KEY");
-  // Any model the Vitex universal layer can reach (src/lib/universal/providers.ts).
   const ai = defaultRoute();
-  const searchKey = setting("TAVILY_API_KEY") ?? setting("SERPER_API_KEY") ?? setting("BING_SEARCH_KEY");
+  const factcheck = slotStatus("factcheck", "FACTCHECK_CONNECTORS");
+  const search = slotStatus("search", "SEARCH_CONNECTORS");
+  const reputation = slotStatus("reputation", "REPUTATION_CONNECTORS");
+  const ct = slotStatus("ct", "CT_CONNECTORS");
 
   return [
     {
       id: "heuristics",
-      label: "SG16 rules engine",
+      label: "Rules engine",
       purpose: "Checksums, identifier normalisation, lexicons, pattern rules. Runs locally, always available, zero marginal cost.",
       enabled: true,
       costPerCallUsd: 0,
@@ -48,62 +64,67 @@ export function getProviderConfigs(): ProviderConfig[] {
     {
       id: "domain-intel",
       label: "Domain & DNS intelligence",
-      purpose: "SOA, NS, MX, TXT/SPF/DMARC, CNAME, TLS certificate age and issuer, redirect chain.",
-      enabled: envFlag("SG16_ENABLE_DNS", true),
+      purpose: "SOA, NS, MX, TXT/SPF/DMARC, CNAME, redirect chain — through the DoH resolvers named in DNS_RESOLVERS.",
+      enabled: envFlag("ENABLE_DNS", true) && dnsConfigured(),
+      reason: dnsConfigured() ? undefined : "DNS_RESOLVERS lists no resolver endpoint",
       costPerCallUsd: 0,
-      docsUrl: "https://datatracker.ietf.org/doc/html/rfc1035",
+    },
+    {
+      id: "certificate-transparency",
+      label: "Certificate Transparency lookups",
+      purpose: "Issuer, subject, validity and age of the host's publicly logged TLS certificate.",
+      enabled: ct.enabled && envFlag("ENABLE_DNS", true),
+      reason: ct.reason,
+      costPerCallUsd: ct.cost,
     },
     {
       id: "catalog",
-      label: "Internal product catalogue",
-      purpose: "Normalised brand/model records with specification ranges and known counterfeit signals.",
+      label: "Product catalogue",
+      purpose: "Operator-maintained, normalised entity/model records with specification ranges and known counterfeit signals (PRODUCT_CATALOG, admin console or API).",
       enabled: true,
       costPerCallUsd: 0,
     },
     {
-      id: "google-factcheck",
-      label: "Google Fact Check Tools API",
-      purpose: "Retrieves existing claim reviews published by fact-checking organisations.",
-      enabled: Boolean(factCheckKey),
-      reason: factCheckKey ? undefined : "GOOGLE_FACTCHECK_API_KEY not configured",
-      costPerCallUsd: 0,
-      docsUrl: "https://developers.google.com/fact-check/tools-api",
+      id: "factcheck",
+      label: "Published claim reviews",
+      purpose: "Existing claim reviews from fact-checking services, through the connectors named in FACTCHECK_CONNECTORS.",
+      enabled: factcheck.enabled,
+      reason: factcheck.reason,
+      costPerCallUsd: factcheck.cost,
     },
     {
-      id: "web-risk",
-      label: "Google Web Risk / Safe Browsing",
-      purpose: "Commercial malicious-URL lookup (phishing, malware, unwanted software).",
-      enabled: Boolean(webRiskKey),
-      reason: webRiskKey ? undefined : "WEB_RISK_API_KEY not configured",
-      costPerCallUsd: 0.005,
-      docsUrl: "https://cloud.google.com/web-risk/pricing",
+      id: "reputation",
+      label: "URL reputation",
+      purpose: "Threat/reputation lookups for URLs, through the connectors named in REPUTATION_CONNECTORS.",
+      enabled: reputation.enabled,
+      reason: reputation.reason,
+      costPerCallUsd: reputation.cost,
     },
     {
       id: "ai-analysis",
       label: "AI claim extraction & reasoning",
-      purpose: "Splits text into atomic claims, compares retrieved evidence, drafts the human summary.",
+      purpose: "Splits text into atomic claims, compares retrieved evidence, drafts the human summary — on whichever model server the operator configured.",
       enabled: Boolean(ai),
       reason: ai ? undefined : aiUnavailableReason(),
       costPerCallUsd: 0.0006,
-      docsUrl: ai?.provider.docsUrl ?? "https://openai.com/api/pricing/",
+      docsUrl: ai?.provider.docsUrl,
     },
     {
       id: "web-search",
-      label: "Licensed web search",
-      purpose: "Discovers primary sources, official announcements and corroborating reporting.",
-      enabled: Boolean(searchKey),
-      reason: searchKey ? undefined : "No search API key configured (TAVILY_API_KEY / SERPER_API_KEY)",
-      costPerCallUsd: 0.004,
-      docsUrl: "https://developers.google.com/custom-search/v1/overview",
+      label: "Web search",
+      purpose: "Discovers primary sources, official announcements and corroborating reporting, through the connectors named in SEARCH_CONNECTORS.",
+      enabled: search.enabled,
+      reason: search.reason,
+      costPerCallUsd: search.cost,
     },
   ];
 }
 
 function aiUnavailableReason(): string {
-  if (enabledProviders().length) return "VITEX_DEFAULT_MODEL does not name an available model";
-  const misconfigured = providerStatuses().find((p) => p.source !== "preset" && p.reason);
+  if (enabledProviders().length) return "DEFAULT_MODEL does not name an available model";
+  const misconfigured = providerStatuses().find((p) => p.reason);
   if (misconfigured) return `${misconfigured.id}: ${misconfigured.reason}`;
-  return "No AI provider configured (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, Workers AI, or VITEX_PROVIDERS)";
+  return "No model server is configured (MODEL_PROVIDERS, or the AI_BASE_URL/AI_API_KEY quick settings)";
 }
 
 export function providerEnabled(id: string): boolean {

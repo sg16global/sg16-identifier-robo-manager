@@ -1,18 +1,38 @@
+import { setting } from "@/lib/settings";
+
 /**
- * DNS over HTTPS (RFC 8484, JSON form) through Cloudflare's public resolver —
- * the Workers replacement for node:dns. Failures carry the same error codes
- * node:dns used (ENOTFOUND, ENODATA, ESERVFAIL, ETIMEOUT), so the text that
- * reaches reports is unchanged.
+ * DNS over HTTPS (RFC 8484, JSON form) — the Workers replacement for node:dns.
+ *
+ * No resolver is built in. The operator lists the DoH endpoints this
+ * deployment should use in DNS_RESOLVERS (comma-separated https URLs of any
+ * RFC 8484 JSON resolvers: self-hosted CoreDNS/PowerDNS with a DoH front,
+ * a resolver in your own cloud, or any public resolver you trust, in any
+ * region). They are tried in order with per-query timeouts, so one slow or
+ * unreachable resolver never takes resolution down. When none is configured,
+ * DNS intelligence switches itself off and reports say so honestly.
+ *
+ * Failures carry the same error codes node:dns used (ENOTFOUND, ENODATA,
+ * ESERVFAIL, ETIMEOUT), so the text that reaches reports is stable.
  */
 
-const ENDPOINT = "https://cloudflare-dns.com/dns-query";
+/** Configured resolver endpoints, in priority order. */
+export function dnsResolvers(): string[] {
+  return (setting("DNS_RESOLVERS") ?? "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter((s) => /^https?:\/\//i.test(s));
+}
+
+export function dnsConfigured(): boolean {
+  return dnsResolvers().length > 0;
+}
 
 const TYPES = { A: 1, NS: 2, CNAME: 5, SOA: 6, MX: 15, TXT: 16, AAAA: 28 } as const;
 export type RecordType = keyof typeof TYPES;
 
 export class DnsError extends Error {
   constructor(
-    readonly code: "ENOTFOUND" | "ENODATA" | "ESERVFAIL" | "ETIMEOUT" | "EREFUSED" | "EBADRESP",
+    readonly code: "ENOTFOUND" | "ENODATA" | "ESERVFAIL" | "ETIMEOUT" | "EREFUSED" | "EBADRESP" | "EUNCONFIGURED",
     hostname: string,
   ) {
     super(`query ${code} ${hostname}`);
@@ -25,19 +45,40 @@ interface DohResponse {
   Answer?: Array<{ name: string; type: number; TTL: number; data: string }>;
 }
 
-/** Raw answer strings of one type ("10 mx.example.com.", "\"v=spf1 -all\"", …). Throws DnsError. */
-export async function resolveRaw(hostname: string, type: RecordType, timeoutMs = 4000): Promise<string[]> {
-  const url = `${ENDPOINT}?name=${encodeURIComponent(hostname)}&type=${type}`;
-  let body: DohResponse;
+async function askResolver(endpoint: string, hostname: string, type: RecordType, timeoutMs: number): Promise<DohResponse> {
+  const url = `${endpoint}?name=${encodeURIComponent(hostname)}&type=${type}`;
   try {
     const res = await fetch(url, { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new DnsError("ESERVFAIL", hostname);
-    body = (await res.json()) as DohResponse;
+    return (await res.json()) as DohResponse;
   } catch (error) {
     if (error instanceof DnsError) throw error;
     const name = (error as { name?: string }).name;
     throw new DnsError(name === "TimeoutError" || name === "AbortError" ? "ETIMEOUT" : "EBADRESP", hostname);
   }
+}
+
+/** Raw answer strings of one type ("10 mx.example.com.", "\"v=spf1 -all\"", …). Throws DnsError. */
+export async function resolveRaw(hostname: string, type: RecordType, timeoutMs = 4000): Promise<string[]> {
+  const resolvers = dnsResolvers();
+  if (!resolvers.length) throw new DnsError("EUNCONFIGURED", hostname);
+
+  let body: DohResponse | null = null;
+  let lastError: DnsError | null = null;
+  for (const endpoint of resolvers) {
+    try {
+      body = await askResolver(endpoint, hostname, type, timeoutMs);
+      break;
+    } catch (error) {
+      lastError = error instanceof DnsError ? error : new DnsError("EBADRESP", hostname);
+      // An authoritative answer from any resolver wins; transport failures fail over.
+      if (lastError.code !== "ETIMEOUT" && lastError.code !== "EBADRESP" && lastError.code !== "ESERVFAIL") {
+        // REFUSED by one resolver may be accepted by another — keep trying.
+      }
+    }
+  }
+  if (!body) throw lastError ?? new DnsError("ESERVFAIL", hostname);
+
   // RCODEs: 0 NOERROR, 2 SERVFAIL, 3 NXDOMAIN, 5 REFUSED.
   if (body.Status === 3) throw new DnsError("ENOTFOUND", hostname);
   if (body.Status === 5) throw new DnsError("EREFUSED", hostname);

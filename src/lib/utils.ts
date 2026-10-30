@@ -1,6 +1,8 @@
 /* ------------------------------- bytes ------------------------------- */
 // Web Crypto and plain JS only: this module runs in the browser and the Worker.
 
+import { identity } from "@/lib/identity";
+
 export function randomBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length));
 }
@@ -35,7 +37,10 @@ export function newId(prefix = ""): string {
   return `${prefix}${toHex(randomBytes(16))}`;
 }
 
-/** Human-shareable, unguessable report reference: SG16-4KQ2-9MXT */
+/**
+ * Human-shareable, unguessable report reference: <PREFIX>-4KQ2-9MXT, where
+ * the prefix is the deployment's configured REPORT_ID_PREFIX (default RPT).
+ */
 export function newPublicId(): string {
   const block = (n: number) => {
     const bytes = randomBytes(n);
@@ -43,7 +48,7 @@ export function newPublicId(): string {
     for (let i = 0; i < n; i += 1) out += ALPHABET[bytes[i] % ALPHABET.length];
     return out;
   };
-  return `SG16-${block(4)}-${block(4)}`;
+  return `${identity().reportIdPrefix}-${block(4)}-${block(4)}`;
 }
 
 export function clamp(n: number, min = 0, max = 1): number {

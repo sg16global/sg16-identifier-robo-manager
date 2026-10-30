@@ -20,18 +20,23 @@ import {
 } from "@/lib/universal/adapters/common";
 
 /**
- * Anthropic Messages API (POST /v1/messages, anthropic-version 2023-06-01).
+ * The "messages" wire format (POST {baseUrl}/messages with a top-level
+ * `system` string, turns made of content blocks, and SSE events named
+ * message_start / content_block_delta / message_delta). Several model servers
+ * speak it; any required version or vendor headers belong in the provider's
+ * configured `headers` — the adapter itself hardcodes nothing.
  *
  * Translation notes:
  *  - system/developer turns become the top-level `system` string; tool turns
  *    become `tool_result` blocks; consecutive same-role turns are merged.
- *  - `max_tokens` is required; current models also spend it on adaptive
- *    thinking, so the default is generous.
+ *  - `max_tokens` is required; some models also spend it on internal
+ *    reasoning, so the default is generous.
  *  - temperature/top_p are dropped unless the provider opts in (`sampling`):
- *    current Claude models reject them with a 400.
+ *    some servers reject them with a 400.
  *  - Forced tool choice ("required" / a named function) maps to any/tool; the
- *    newest models reject that, so the call is retried once with auto.
- *  - thinking blocks are not part of the OpenAI shape and are skipped.
+ *    newest servers reject that, so the call is retried once with auto.
+ *  - reasoning/thinking blocks are not part of the canonical shape and are
+ *    skipped.
  */
 
 const DEFAULT_MAX_TOKENS = 16_000;
@@ -157,25 +162,25 @@ function finishReason(stop: string | null | undefined, hasTools: boolean): Finis
   return "stop";
 }
 
-interface AnthropicUsage {
+interface MessagesUsage {
   input_tokens?: number;
   output_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
 }
 
-function promptTokens(usage: AnthropicUsage | undefined): number {
+function promptTokens(usage: MessagesUsage | undefined): number {
   return (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0);
 }
 
-export const anthropicAdapter: Adapter = {
+export const messagesAdapter: Adapter = {
   async complete(route, request, signal) {
     const res = await send(route, payload(route, request, false), signal);
     const data = (await res.json()) as {
       id?: string;
       content?: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>;
       stop_reason?: string | null;
-      usage?: AnthropicUsage;
+      usage?: MessagesUsage;
     };
     const blocks = data.content ?? [];
     const text = blocks.filter((b) => b.type === "text").map((b) => b.text ?? "").join("");
@@ -212,10 +217,10 @@ export const anthropicAdapter: Adapter = {
       let data: {
         type?: string;
         index?: number;
-        message?: { id?: string; usage?: AnthropicUsage };
+        message?: { id?: string; usage?: MessagesUsage };
         content_block?: { type?: string; id?: string; name?: string; text?: string };
         delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string | null };
-        usage?: AnthropicUsage;
+        usage?: MessagesUsage;
         error?: { message?: string };
       };
       try {

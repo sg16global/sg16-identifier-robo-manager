@@ -15,8 +15,8 @@ import {
 } from "@/lib/universal/adapters/common";
 
 /**
- * Any company's model API that follows none of the standard protocols,
- * described in VITEX_PROVIDERS:
+ * Any JSON API anywhere that follows none of the standard protocols,
+ * described declaratively in MODEL_PROVIDERS:
  *
  *   { "id": "acme", "protocol": "custom", "baseUrl": "https://ml.acme.com", "path": "/v2/generate",
  *     "apiKeyEnv": "ACME_KEY",

@@ -18,9 +18,9 @@ type Mode = VerificationCategory | "auto";
 
 const EXAMPLES: Record<Mode, Array<{ label: string; value: string; file?: boolean }>> = {
   auto: [
-    { label: "Paste a link you were sent", value: "Check this site before I order: https://apple-secure-verify-login.top/account/confirm?id=9921" },
+    { label: "Paste a link you were sent", value: "Check this site before I order: https://secure-verify-login.top/account/confirm?id=9921" },
     { label: "A viral claim", value: "A new law passed last week means every phone purchased before 2024 will stop working on all networks from January." },
-    { label: "A model number", value: "Is SM-S928B/DS a real Galaxy S24 Ultra? Seller says 256GB, 6.8 inch, 5000mAh, $310 brand new sealed." },
+    { label: "A model number", value: "Is the model number AB-9900X/DS a real device? Seller says 256GB, 6.8 inch, 5000mAh, $310 brand new sealed." },
   ],
   claim: [
     { label: "Health claim", value: "Doctors confirm that drinking boiled lemon water every morning cures type 2 diabetes within three weeks, but the pharmaceutical industry is suppressing the study." },
@@ -28,15 +28,15 @@ const EXAMPLES: Record<Mode, Array<{ label: string; value: string; file?: boolea
     { label: "Attributed quote", value: "The CEO of the central bank said in an interview that cash will be illegal from next year." },
   ],
   website: [
-    { label: "Suspicious shop", value: "https://dyson-outlet-clearance.top/shop/v15-detect-70-off" },
-    { label: "Brand impersonation", value: "Message from DHL: your parcel is held at customs, pay a $2.99 clearance fee here http://dhl-customs-fee.cc/pay" },
+    { label: "Suspicious shop", value: "https://factory-outlet-clearance.top/shop/stick-vacuum-70-off" },
+    { label: "Courier impersonation", value: "Message from a parcel courier: your parcel is held at customs, pay a $2.99 clearance fee here http://parcel-customs-fee.cc/pay" },
     { label: "Bare IP link", value: "Login to your account now at http://192.168.4.17/verify/index.php before it is suspended" },
   ],
   product: [
-    { label: "IMEI check", value: "IMEI 356938035643809 — iPhone 15 Pro Max, seller says brand new, 256GB, 6.7 inch, $520" },
-    { label: "Barcode check", value: "EAN 4006381333931 on the box of a charger marked Anker A2147 30W, $6.50 each, bulk lot of 200" },
-    { label: "Invalid barcode", value: "Box says model EP-T2510 25W, barcode 8806092013456, price $3.99, ships from overseas warehouse" },
-    { label: "Spec mismatch", value: "Galaxy A55 5G SM-A556B, 6.1 inch display, 3000mAh battery, 45W charging, $180 new in box" },
+    { label: "IMEI check", value: "IMEI 356938035643809 — flagship phone, seller says brand new, 256GB, 6.7 inch, $520" },
+    { label: "Barcode check", value: "EAN 4006381333931 on the box of a charger marked as a 30W fast charger, $6.50 each, bulk lot of 200" },
+    { label: "Invalid barcode", value: "Box says model QC-2510 25W, barcode 8806092013456, price $3.99, ships from overseas warehouse" },
+    { label: "Spec mismatch", value: "Budget 5G phone model AB-A55X, 6.1 inch display, 3000mAh battery, 45W charging, $180 new in box" },
   ],
   media: [
     { label: "Attach a screenshot", value: "This image was sent to me claiming to show an event last week. Is it genuine?", file: true },
@@ -80,7 +80,7 @@ export function VerifyConsole({
   const [dragging, setDragging] = useState(false);
   const [recent, setRecent] = useState<Array<{ publicId: string; category: string; status: string; at: string }>>(() => {
     try {
-      const stored = localStorage.getItem("sg16:recent");
+      const stored = localStorage.getItem("app:recent");
       return stored ? JSON.parse(stored) : [];
     } catch {
       return []; // private mode
@@ -163,7 +163,7 @@ export function VerifyConsole({
       };
       setRecent((prev) => {
         const next = [entry, ...prev.filter((p) => p.publicId !== entry.publicId)].slice(0, 6);
-        try { localStorage.setItem("sg16:recent", JSON.stringify(next)); } catch { /* ignore */ }
+        try { localStorage.setItem("app:recent", JSON.stringify(next)); } catch { /* ignore */ }
         return next;
       });
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);

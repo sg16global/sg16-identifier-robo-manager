@@ -5,7 +5,7 @@ import { runVerification } from "@/lib/verification/engine";
 import { verifyRequestProblem } from "@/lib/verification/request";
 
 /**
- * The SG16 verification engine for API key holders: same body and report as
+ * The verification engine for API key holders: same body and report as
  * /api/verify, metered per key instead of per visitor, and subject to the
  * same operator intake switch and daily budget.
  */

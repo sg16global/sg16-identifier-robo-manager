@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /*
- * SG16 Identifier — black & neon-red design system.
+ * Black & neon-red design system. Colours, type scale and effects are theme
+ * tokens; nothing here is tied to a product or company identity.
  *
  * Every component colours itself through these scales, so the whole site is
  * themed from this one file:

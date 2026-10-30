@@ -1,17 +1,23 @@
 import { useSyncExternalStore } from "react";
+import { identity } from "@/lib/identity";
 
 /**
- * Shared voice for the hero Robo Manager and the chat widget: one mute
+ * Shared voice for the assistant mascot and the chat widget: one mute
  * preference, one voice picker, one speak() built on window.speechSynthesis,
- * and the faint ambient hum that plays under any line being spoken.
+ * and the faint ambient hum that plays under any line being spoken. The
+ * assistant's name comes from the deployment identity (ROBO_NAME).
  * Nothing here ever throws — a browser without speech, or one that refuses to
  * speak, simply stays silent.
  */
 
+function roboName(): string {
+  return identity().roboName;
+}
+
 /* ---------------------------------- mute ---------------------------------- */
 
 // Mute preference: browser storage when it works, memory otherwise.
-const MUTE_KEY = "sg16:robot-muted";
+const MUTE_KEY = "app:robot-muted";
 let mutedMemory: boolean | null = null;
 const muteListeners = new Set<() => void>();
 
@@ -113,7 +119,7 @@ function rankEnglish(voices: SpeechSynthesisVoice[]) {
   if (voices.length > 0 && !warnedDatedVoice) {
     warnedDatedVoice = true;
     console.warn(
-      `[SG16 Robo Manager] No modern English voice is installed; using "${voices[0].name}". ` +
+      `[${roboName()}] No modern English voice is installed; using "${voices[0].name}". ` +
         "Edge (Microsoft Natural voices) or Chrome (Google voices) sound much better.",
     );
   }

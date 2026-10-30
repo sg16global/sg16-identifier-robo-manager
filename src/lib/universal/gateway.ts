@@ -5,17 +5,18 @@ import { POLICIES, budgetExhausted, consumeRateLimit, noteBudgetBlock } from "@/
 import { setting } from "@/lib/settings";
 
 /**
- * HTTP edge of the Vitex universal API: who may call it, from which browser
+ * HTTP edge of the universal gateway API: who may call it, from which browser
  * origins, how often, and how its errors look.
  *
- * Closed by default. Without VITEX_GATEWAY_KEYS nobody can call it: an open
+ * Closed by default. Without GATEWAY_API_KEYS nobody can call it: an open
  * gateway would let anyone spend the operator's provider credit. Keys are
- * accepted in the header each client SDK already uses (OpenAI, Anthropic,
- * Azure, Google) and never in the URL, where they would reach access logs.
+ * accepted in the header each client SDK already uses (Authorization Bearer,
+ * x-api-key, api-key, x-goog-api-key) and never in the URL, where they would
+ * reach access logs.
  */
 
 export function gatewayKeys(): string[] {
-  return (setting("VITEX_GATEWAY_KEYS") ?? "")
+  return (setting("GATEWAY_API_KEYS") ?? "")
     .split(/[\s,]+/)
     .map((k) => k.trim())
     .filter((k) => k.length >= 16);
@@ -25,8 +26,8 @@ export function gatewayEnabled(): boolean {
   return gatewayKeys().length > 0;
 }
 
-/** Headers that may carry the gateway key, in order. x-vitex-key leaves Authorization free for the caller's own target credentials. */
-const KEY_HEADERS = ["x-vitex-key", "authorization", "x-api-key", "api-key", "x-goog-api-key"] as const;
+/** Headers that may carry the gateway key, in order. x-gateway-key leaves Authorization free for the caller's own target credentials. */
+const KEY_HEADERS = ["x-gateway-key", "authorization", "x-api-key", "api-key", "x-goog-api-key"] as const;
 
 /** Which header carried the gateway key, or null when none did. */
 export function gatewayKeyHeader(request: Request): (typeof KEY_HEADERS)[number] | null {
@@ -54,13 +55,13 @@ async function matchKey(supplied: string): Promise<string | null> {
 
 const ALLOWED_HEADERS = [
   "authorization", "content-type", "accept", "x-api-key", "api-key", "x-goog-api-key", "anthropic-version", "x-request-id",
-  "x-vitex-key", "x-vitex-base-url", "x-vitex-api-key", "x-vitex-auth-header", "x-vitex-auth-scheme", "x-vitex-target",
+  "x-gateway-key", "x-gateway-base-url", "x-gateway-api-key", "x-gateway-auth-header", "x-gateway-auth-scheme", "x-gateway-target",
 ].join(", ");
-const EXPOSED_HEADERS = "x-request-id, x-vitex-provider, x-vitex-model, x-vitex-upstream, x-vitex-target, retry-after";
+const EXPOSED_HEADERS = "x-request-id, x-gateway-provider, x-gateway-model, x-gateway-upstream, x-gateway-target, retry-after";
 
-/** CORS for browser clients, per VITEX_CORS_ORIGINS ("*" or a comma list). Unset: server-to-server only. */
+/** CORS for browser clients, per GATEWAY_CORS_ORIGINS ("*" or a comma list). Unset: server-to-server only. */
 export function corsHeaders(request: Request): Record<string, string> {
-  const configured = (setting("VITEX_CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(Boolean);
+  const configured = (setting("GATEWAY_CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(Boolean);
   const origin = request.headers.get("origin");
   if (!configured.length || !origin) return {};
   const allowAll = configured.includes("*");
@@ -114,12 +115,12 @@ export interface Admission {
  */
 export async function admit(request: Request, { flag }: { flag?: string } = {}): Promise<Admission | Response> {
   if (!gatewayEnabled()) {
-    return errorResponse(request, 503, "The Vitex API is closed: the operator has not issued any keys (VITEX_GATEWAY_KEYS).", "gateway_disabled");
+    return errorResponse(request, 503, "The gateway API is closed: the operator has not issued any keys (GATEWAY_API_KEYS).", "gateway_disabled");
   }
   const principal = await matchKey(presentedKey(request));
   if (!principal) {
     return errorResponse(request, 401, "A valid API key is required (Authorization: Bearer <key>, or x-api-key).", "invalid_api_key", {
-      "www-authenticate": 'Bearer realm="vitex"',
+      "www-authenticate": 'Bearer realm="gateway"',
     });
   }
   const limit = await consumeRateLimit(principal, POLICIES.gateway);

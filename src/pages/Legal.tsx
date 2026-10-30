@@ -1,12 +1,14 @@
 import { useParams } from "react-router";
 import { Link } from "@/components/link";
 import { IconArrow, IconScale, IconSeal, Panel, Reveal, SectionLabel, TonalChip } from "@/components/ui";
-import { LEGAL_DOCS } from "@/content/legal";
+import { legalDocs } from "@/content/legal";
+import { identity } from "@/lib/identity";
 import NotFoundPage from "@/pages/NotFound";
 
 export default function LegalPage() {
+  const id = identity();
   const { doc = "" } = useParams();
-  const page = LEGAL_DOCS[doc];
+  const page = legalDocs()[doc];
   if (!page) return <NotFoundPage />;
 
   return (
@@ -70,7 +72,7 @@ export default function LegalPage() {
               <div>
                 <SectionLabel tone="mist">Other policies</SectionLabel>
                 <div className="mt-4 flex flex-wrap gap-2.5">
-                  {Object.values(LEGAL_DOCS)
+                  {Object.values(legalDocs())
                     .filter((other) => other.slug !== page.slug)
                     .map((other) => (
                       <Link
@@ -86,7 +88,7 @@ export default function LegalPage() {
                 <div className="mt-7 flex items-start gap-3 border-t border-mist-500/12 pt-6">
                   <IconSeal className="mt-0.5 h-5 w-5 shrink-0 text-mist-600" />
                   <p className="text-[12.5px] leading-relaxed text-mist-600">
-                    SG16 Identifier is an independent verification tool. It is not affiliated with,
+                    {id.appName} is an independent verification tool. It is not affiliated with,
                     endorsed by, or acting on behalf of any manufacturer, retailer, platform,
                     fact-checking organisation or government body named in its reports. Nothing here or
                     in any report constitutes legal advice.

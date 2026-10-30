@@ -70,7 +70,7 @@ const API_ENDPOINTS = [
   { method: "POST", path: "/v1/verify:batch", body: '{ "items": [ … ], "category": "product" }', out: "Job reference; results delivered by webhook or polling." },
   { method: "GET", path: "/v1/usage", body: "—", out: "Calls, tokens and metered cost for the current billing period." },
   { method: "POST", path: "/v1/monitors", body: '{ "target": "…", "cadence": "daily" }', out: "A recurring domain or catalogue watch with alert configuration." },
-  { method: "GET", path: "/v1/catalog/{brand}/{model}", body: "—", out: "The normalised record SG16 matched against, with its provenance." },
+  { method: "GET", path: "/v1/catalog/{brand}/{model}", body: "—", out: "The normalised record the engine matched against, with its provenance." },
 ];
 
 const SEPARATIONS = [
@@ -101,7 +101,7 @@ export default function BusinessPage() {
               <p className="mt-6 max-w-2xl text-[16.5px] leading-relaxed text-mist-400">
                 Retailers, marketplaces, importers and repair networks need to check hundreds of
                 listings, domains and identifiers a day, with an audit trail and a budget they can
-                forecast. SG16 Business Verification is the same engine the public uses — with volume,
+                forecast. Business Verification is the same engine the public uses — with volume,
                 monitoring, export and support around it.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
@@ -220,7 +220,7 @@ export default function BusinessPage() {
           <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr] [&>*]:min-w-0">
             <Reveal>
               <div className="lg:sticky lg:top-28">
-                <SectionLabel>SG16 Identifier API</SectionLabel>
+                <SectionLabel>Verification API</SectionLabel>
                 <h2 className="mt-4 font-display text-[clamp(1.8rem,3.6vw,2.7rem)] font-semibold leading-[1.06] tracking-tight text-paper-50">
                   The same report schema the public site renders.
                 </h2>

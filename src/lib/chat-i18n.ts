@@ -1,8 +1,13 @@
+import { identity } from "@/lib/identity";
+
 /**
  * Chat widget dictionary. Every robot line exists in every language, so a
  * language switch re-renders the whole conversation. To add a language: add
  * it to CHAT_LANGUAGES, give it a dictionary (TypeScript enforces every key),
  * and optionally add keywords to INTENT_KEYWORDS.
+ *
+ * Product and assistant names are never spelled out here: strings use the
+ * {app} and {assistant} placeholders, filled from the deployment identity.
  *
  * Translations were written for this widget and should be reviewed by native
  * speakers before launch.
@@ -32,7 +37,7 @@ export function languageInfo(code: ChatLang) {
 }
 
 const EN = {
-  "ui.subtitle": "Ask me about SG16 Identifier",
+  "ui.subtitle": "Ask me about {app}",
   "ui.placeholder": "Type your question…",
   "ui.send": "Send",
   "ui.close": "Close chat",
@@ -44,10 +49,10 @@ const EN = {
   "ui.scanning": "Scanning…",
   "ui.you": "You",
 
-  greeting: "Hello! I'm the SG16 Robo Manager. How can I help you today?",
+  greeting: "Hello! I'm the {assistant}. How can I help you today?",
 
   "q.verifyWebsite": "How do I verify a website?",
-  "q.whatIs": "What is SG16 Identifier?",
+  "q.whatIs": "What is {app}?",
   "q.howWorks": "How does the verification work?",
   "q.free": "Is this service free?",
   "q.languages": "What languages do you support?",
@@ -56,11 +61,11 @@ const EN = {
   "a.verifyWebsite":
     "Paste the full web address into the check box on the homepage and press Identify. I look at the domain and its DNS and mail records, the SSL certificate, signs of brand impersonation and threat lookups, then show every finding with its source.",
   "a.whatIs":
-    "SG16 Identifier is a free verification engine for four problems: counterfeit products, unverified news, cloned shops and synthetic media. Each report separates what was checked, what was contradicted and what remains unknown.",
+    "{app} is a free verification engine for four problems: counterfeit products, unverified news, cloned shops and synthetic media. Each report separates what was checked, what was contradicted and what remains unknown.",
   "a.howWorks":
     "Great question! I analyse websites, products, news claims and media files. I gather evidence from several sources and give a confidence score when the evidence supports one. I never guess — I only report what the evidence shows. Want to try it now?",
   "a.free":
-    "Yes. Checks are free for the public: no account, no subscription, no card. SG16 is funded by disclosed advertising, affiliate referrals and business services — never by the outcome of a check.",
+    "Yes. Checks are free for the public: no account, no subscription, no card. The service is operated independently of any check's outcome.",
   "a.languages": "I can chat in {languages}. Pick one from the language menu at the top of this panel.",
   "a.changeLanguage": "Choose a language from the menu at the top of this panel.",
   "a.fallback": "I don't have an answer for that yet. These are the topics I can help with:",
@@ -97,7 +102,7 @@ export type MessageKey = keyof typeof EN;
 type Dictionary = Record<MessageKey, string>;
 
 const ES: Dictionary = {
-  "ui.subtitle": "Pregúntame sobre SG16 Identifier",
+  "ui.subtitle": "Pregúntame sobre {app}",
   "ui.placeholder": "Escribe tu pregunta…",
   "ui.send": "Enviar",
   "ui.close": "Cerrar chat",
@@ -108,9 +113,9 @@ const ES: Dictionary = {
   "ui.mutedHint": "El robot está silenciado: actívalo para oír las respuestas.",
   "ui.scanning": "Analizando…",
   "ui.you": "Tú",
-  greeting: "¡Hola! Soy el SG16 Robo Manager. ¿En qué puedo ayudarte hoy?",
+  greeting: "¡Hola! Soy el {assistant}. ¿En qué puedo ayudarte hoy?",
   "q.verifyWebsite": "¿Cómo verifico un sitio web?",
-  "q.whatIs": "¿Qué es SG16 Identifier?",
+  "q.whatIs": "¿Qué es {app}?",
   "q.howWorks": "¿Cómo funciona la verificación?",
   "q.free": "¿Este servicio es gratuito?",
   "q.languages": "¿Qué idiomas hablas?",
@@ -118,11 +123,11 @@ const ES: Dictionary = {
   "a.verifyWebsite":
     "Pega la dirección web completa en el cuadro de verificación de la página de inicio y pulsa Identify. Reviso el dominio y sus registros DNS y de correo, el certificado SSL, señales de suplantación de marca y consultas a bases de amenazas, y muestro cada hallazgo con su fuente.",
   "a.whatIs":
-    "SG16 Identifier es un motor de verificación gratuito para cuatro problemas: productos falsificados, noticias sin verificar, tiendas clonadas y contenido sintético. Cada informe separa lo que se comprobó, lo que se contradijo y lo que sigue sin saberse.",
+    "{app} es un motor de verificación gratuito para cuatro problemas: productos falsificados, noticias sin verificar, tiendas clonadas y contenido sintético. Cada informe separa lo que se comprobó, lo que se contradijo y lo que sigue sin saberse.",
   "a.howWorks":
     "¡Buena pregunta! Analizo sitios web, productos, afirmaciones de noticias y archivos multimedia. Reúno pruebas de varias fuentes y doy una puntuación de confianza cuando las pruebas lo permiten. Nunca adivino: solo informo de lo que muestran las pruebas. ¿Quieres probarlo ahora?",
   "a.free":
-    "Sí. Las verificaciones son gratuitas para el público: sin cuenta, sin suscripción y sin tarjeta. SG16 se financia con publicidad declarada, enlaces de afiliados y servicios para empresas, nunca con el resultado de una verificación.",
+    "Sí. Las verificaciones son gratuitas para el público: sin cuenta, sin suscripción y sin tarjeta. El servicio opera con independencia del resultado de cualquier verificación.",
   "a.languages": "Puedo conversar en {languages}. Elige uno en el menú de idioma de la parte superior de este panel.",
   "a.changeLanguage": "Elige un idioma en el menú de la parte superior de este panel.",
   "a.fallback": "Todavía no tengo respuesta para eso. Estos son los temas en los que puedo ayudarte:",
@@ -152,7 +157,7 @@ const ES: Dictionary = {
 };
 
 const FR: Dictionary = {
-  "ui.subtitle": "Posez-moi vos questions sur SG16 Identifier",
+  "ui.subtitle": "Posez-moi vos questions sur {app}",
   "ui.placeholder": "Écrivez votre question…",
   "ui.send": "Envoyer",
   "ui.close": "Fermer le chat",
@@ -163,9 +168,9 @@ const FR: Dictionary = {
   "ui.mutedHint": "Le robot est en sourdine : réactivez le son pour entendre les réponses.",
   "ui.scanning": "Analyse en cours…",
   "ui.you": "Vous",
-  greeting: "Bonjour ! Je suis le SG16 Robo Manager. Comment puis-je vous aider aujourd'hui ?",
+  greeting: "Bonjour ! Je suis le {assistant}. Comment puis-je vous aider aujourd'hui ?",
   "q.verifyWebsite": "Comment vérifier un site web ?",
-  "q.whatIs": "Qu'est-ce que SG16 Identifier ?",
+  "q.whatIs": "Qu'est-ce que {app} ?",
   "q.howWorks": "Comment fonctionne la vérification ?",
   "q.free": "Ce service est-il gratuit ?",
   "q.languages": "Quelles langues parlez-vous ?",
@@ -173,11 +178,11 @@ const FR: Dictionary = {
   "a.verifyWebsite":
     "Collez l'adresse web complète dans la zone de vérification de la page d'accueil et appuyez sur Identify. J'examine le domaine et ses enregistrements DNS et de messagerie, le certificat SSL, les signes d'usurpation de marque et les bases de menaces, puis j'affiche chaque constat avec sa source.",
   "a.whatIs":
-    "SG16 Identifier est un moteur de vérification gratuit pour quatre problèmes : produits contrefaits, informations non vérifiées, boutiques clonées et médias synthétiques. Chaque rapport distingue ce qui a été vérifié, ce qui a été contredit et ce qui reste inconnu.",
+    "{app} est un moteur de vérification gratuit pour quatre problèmes : produits contrefaits, informations non vérifiées, boutiques clonées et médias synthétiques. Chaque rapport distingue ce qui a été vérifié, ce qui a été contredit et ce qui reste inconnu.",
   "a.howWorks":
     "Bonne question ! J'analyse des sites web, des produits, des affirmations d'actualité et des fichiers multimédias. Je rassemble des preuves de plusieurs sources et j'indique un score de confiance lorsque les preuves le permettent. Je ne devine jamais : je rapporte seulement ce que montrent les preuves. Voulez-vous essayer maintenant ?",
   "a.free":
-    "Oui. Les vérifications sont gratuites pour le public : sans compte, sans abonnement, sans carte. SG16 est financé par de la publicité déclarée, des liens d'affiliation et des services aux entreprises, jamais par le résultat d'une vérification.",
+    "Oui. Les vérifications sont gratuites pour le public : sans compte, sans abonnement, sans carte. Le service fonctionne en toute indépendance du résultat d'une vérification.",
   "a.languages": "Je peux discuter en {languages}. Choisissez-en une dans le menu des langues en haut de ce panneau.",
   "a.changeLanguage": "Choisissez une langue dans le menu en haut de ce panneau.",
   "a.fallback": "Je n'ai pas encore de réponse à cela. Voici les sujets sur lesquels je peux vous aider :",
@@ -207,7 +212,7 @@ const FR: Dictionary = {
 };
 
 const DE: Dictionary = {
-  "ui.subtitle": "Frag mich alles zu SG16 Identifier",
+  "ui.subtitle": "Frag mich alles zu {app}",
   "ui.placeholder": "Gib deine Frage ein…",
   "ui.send": "Senden",
   "ui.close": "Chat schließen",
@@ -218,9 +223,9 @@ const DE: Dictionary = {
   "ui.mutedHint": "Der Roboter ist stummgeschaltet – schalte den Ton ein, um Antworten zu hören.",
   "ui.scanning": "Prüfung läuft…",
   "ui.you": "Du",
-  greeting: "Hallo! Ich bin der SG16 Robo Manager. Wie kann ich dir heute helfen?",
+  greeting: "Hallo! Ich bin der {assistant}. Wie kann ich dir heute helfen?",
   "q.verifyWebsite": "Wie prüfe ich eine Website?",
-  "q.whatIs": "Was ist SG16 Identifier?",
+  "q.whatIs": "Was ist {app}?",
   "q.howWorks": "Wie funktioniert die Prüfung?",
   "q.free": "Ist dieser Dienst kostenlos?",
   "q.languages": "Welche Sprachen sprichst du?",
@@ -228,11 +233,11 @@ const DE: Dictionary = {
   "a.verifyWebsite":
     "Füge die vollständige Webadresse in das Prüffeld auf der Startseite ein und drücke Identify. Ich prüfe die Domain mit ihren DNS- und Mail-Einträgen, das SSL-Zertifikat, Anzeichen für Markenmissbrauch und Bedrohungsdatenbanken und zeige jeden Befund mit Quelle.",
   "a.whatIs":
-    "SG16 Identifier ist eine kostenlose Prüfmaschine für vier Probleme: gefälschte Produkte, unbestätigte Nachrichten, geklonte Shops und synthetische Medien. Jeder Bericht trennt, was geprüft wurde, was widerlegt wurde und was unbekannt bleibt.",
+    "{app} ist eine kostenlose Prüfmaschine für vier Probleme: gefälschte Produkte, unbestätigte Nachrichten, geklonte Shops und synthetische Medien. Jeder Bericht trennt, was geprüft wurde, was widerlegt wurde und was unbekannt bleibt.",
   "a.howWorks":
     "Gute Frage! Ich analysiere Websites, Produkte, Nachrichtenbehauptungen und Mediendateien. Ich sammle Belege aus mehreren Quellen und gebe einen Konfidenzwert an, wenn die Belege einen tragen. Ich rate nie – ich berichte nur, was die Belege zeigen. Möchtest du es gleich ausprobieren?",
   "a.free":
-    "Ja. Prüfungen sind für die Öffentlichkeit kostenlos: kein Konto, kein Abo, keine Karte. SG16 finanziert sich über gekennzeichnete Werbung, Affiliate-Links und Geschäftskunden – nie über das Ergebnis einer Prüfung.",
+    "Ja. Prüfungen sind für die Öffentlichkeit kostenlos: kein Konto, kein Abo, keine Karte. Der Dienst arbeitet unabhängig vom Ergebnis einer Prüfung.",
   "a.languages": "Ich kann auf {languages} chatten. Wähle oben in diesem Fenster eine Sprache aus dem Menü.",
   "a.changeLanguage": "Wähle oben in diesem Fenster eine Sprache aus dem Menü.",
   "a.fallback": "Darauf habe ich noch keine Antwort. Bei diesen Themen kann ich helfen:",
@@ -262,7 +267,7 @@ const DE: Dictionary = {
 };
 
 const ZH: Dictionary = {
-  "ui.subtitle": "关于 SG16 Identifier，尽管问我",
+  "ui.subtitle": "关于 {app}，尽管问我",
   "ui.placeholder": "输入你的问题…",
   "ui.send": "发送",
   "ui.close": "关闭聊天",
@@ -273,9 +278,9 @@ const ZH: Dictionary = {
   "ui.mutedHint": "机器人已静音，取消静音即可听到回复。",
   "ui.scanning": "正在扫描…",
   "ui.you": "你",
-  greeting: "你好！我是 SG16 Robo Manager。今天我能帮你什么？",
+  greeting: "你好！我是 {assistant}。今天我能帮你什么？",
   "q.verifyWebsite": "如何验证一个网站？",
-  "q.whatIs": "SG16 Identifier 是什么？",
+  "q.whatIs": "{app} 是什么？",
   "q.howWorks": "验证是如何进行的？",
   "q.free": "这项服务免费吗？",
   "q.languages": "你支持哪些语言？",
@@ -283,11 +288,11 @@ const ZH: Dictionary = {
   "a.verifyWebsite":
     "把完整网址粘贴到首页的检查框中，然后点击 Identify。我会检查域名及其 DNS 和邮件记录、SSL 证书、品牌冒充迹象以及威胁数据库，并列出每项发现及其来源。",
   "a.whatIs":
-    "SG16 Identifier 是一个免费的验证引擎，针对四类问题：假冒商品、未经证实的新闻、克隆网店和合成媒体。每份报告都会区分已核实的内容、被反驳的内容以及仍未知的内容。",
+    "{app} 是一个免费的验证引擎，针对四类问题：假冒商品、未经证实的新闻、克隆网店和合成媒体。每份报告都会区分已核实的内容、被反驳的内容以及仍未知的内容。",
   "a.howWorks":
     "好问题！我分析网站、商品、新闻说法和媒体文件。我从多个来源收集证据，并在证据充分时给出置信度。我从不猜测，只报告证据所显示的内容。要现在试试吗？",
   "a.free":
-    "是的。检查对公众免费：无需账户、无需订阅、无需银行卡。SG16 的资金来自公开披露的广告、联盟推荐和企业服务，绝不取决于检查结果。",
+    "是的。检查对公众免费：无需账户、无需订阅、无需银行卡。本服务的运作绝不取决于检查结果。",
   "a.languages": "我可以用{languages}聊天。请在本面板顶部的语言菜单中选择。",
   "a.changeLanguage": "请在本面板顶部的菜单中选择一种语言。",
   "a.fallback": "这个问题我暂时还无法回答。我可以在以下话题上帮助你：",
@@ -314,7 +319,7 @@ const ZH: Dictionary = {
 };
 
 const AR: Dictionary = {
-  "ui.subtitle": "اسألني عن SG16 Identifier",
+  "ui.subtitle": "اسألني عن {app}",
   "ui.placeholder": "اكتب سؤالك…",
   "ui.send": "إرسال",
   "ui.close": "إغلاق المحادثة",
@@ -325,9 +330,9 @@ const AR: Dictionary = {
   "ui.mutedHint": "الروبوت في وضع كتم الصوت، ألغِ الكتم لسماع الردود.",
   "ui.scanning": "جارٍ الفحص…",
   "ui.you": "أنت",
-  greeting: "مرحبًا! أنا SG16 Robo Manager. كيف يمكنني مساعدتك اليوم؟",
+  greeting: "مرحبًا! أنا {assistant}. كيف يمكنني مساعدتك اليوم؟",
   "q.verifyWebsite": "كيف أتحقق من موقع إلكتروني؟",
-  "q.whatIs": "ما هو SG16 Identifier؟",
+  "q.whatIs": "ما هو {app}؟",
   "q.howWorks": "كيف يعمل التحقق؟",
   "q.free": "هل هذه الخدمة مجانية؟",
   "q.languages": "ما اللغات التي تدعمها؟",
@@ -335,11 +340,11 @@ const AR: Dictionary = {
   "a.verifyWebsite":
     "الصق عنوان الموقع كاملًا في مربع الفحص في الصفحة الرئيسية واضغط Identify. أفحص النطاق وسجلات DNS والبريد الخاصة به، وشهادة SSL، وعلامات انتحال العلامات التجارية، وقواعد بيانات التهديدات، ثم أعرض كل نتيجة مع مصدرها.",
   "a.whatIs":
-    "SG16 Identifier محرك تحقق مجاني لأربع مشكلات: المنتجات المقلدة، والأخبار غير المؤكدة، والمتاجر المستنسخة، والوسائط المصطنعة. يفصل كل تقرير بين ما تم التحقق منه وما ثبت عكسه وما يظل مجهولًا.",
+    "{app} محرك تحقق مجاني لأربع مشكلات: المنتجات المقلدة، والأخبار غير المؤكدة، والمتاجر المستنسخة، والوسائط المصطنعة. يفصل كل تقرير بين ما تم التحقق منه وما ثبت عكسه وما يظل مجهولًا.",
   "a.howWorks":
     "سؤال رائع! أحلل المواقع والمنتجات والادعاءات الإخبارية وملفات الوسائط. أجمع الأدلة من مصادر متعددة وأقدم درجة ثقة عندما تدعمها الأدلة. لا أخمّن أبدًا، بل أنقل فقط ما تُظهره الأدلة. هل تريد التجربة الآن؟",
   "a.free":
-    "نعم. الفحوصات مجانية للجمهور: بلا حساب ولا اشتراك ولا بطاقة. يُموَّل SG16 من إعلانات مُفصح عنها وإحالات تسويقية وخدمات للشركات، وليس أبدًا من نتيجة الفحص.",
+    "نعم. الفحوصات مجانية للجمهور: بلا حساب ولا اشتراك ولا بطاقة. تعمل الخدمة باستقلال تام عن نتيجة أي فحص.",
   "a.languages": "يمكنني الدردشة باللغات التالية: {languages}. اختر لغة من قائمة اللغات في أعلى هذه اللوحة.",
   "a.changeLanguage": "اختر لغة من القائمة في أعلى هذه اللوحة.",
   "a.fallback": "ليست لدي إجابة عن ذلك بعد. هذه هي المواضيع التي يمكنني المساعدة فيها:",
@@ -367,7 +372,7 @@ const AR: Dictionary = {
 };
 
 const HI: Dictionary = {
-  "ui.subtitle": "SG16 Identifier के बारे में मुझसे पूछें",
+  "ui.subtitle": "{app} के बारे में मुझसे पूछें",
   "ui.placeholder": "अपना सवाल लिखें…",
   "ui.send": "भेजें",
   "ui.close": "चैट बंद करें",
@@ -378,9 +383,9 @@ const HI: Dictionary = {
   "ui.mutedHint": "रोबोट म्यूट है। जवाब सुनने के लिए अनम्यूट करें।",
   "ui.scanning": "स्कैन हो रहा है…",
   "ui.you": "आप",
-  greeting: "नमस्ते! मैं SG16 Robo Manager हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?",
+  greeting: "नमस्ते! मैं {assistant} हूँ। आज मैं आपकी क्या मदद कर सकता हूँ?",
   "q.verifyWebsite": "मैं किसी वेबसाइट को कैसे जाँचूँ?",
-  "q.whatIs": "SG16 Identifier क्या है?",
+  "q.whatIs": "{app} क्या है?",
   "q.howWorks": "जाँच कैसे काम करती है?",
   "q.free": "क्या यह सेवा मुफ़्त है?",
   "q.languages": "आप कौन-सी भाषाएँ समझते हैं?",
@@ -388,11 +393,11 @@ const HI: Dictionary = {
   "a.verifyWebsite":
     "होमपेज पर जाँच बॉक्स में पूरा वेब पता चिपकाएँ और Identify दबाएँ। मैं डोमेन और उसके DNS व मेल रिकॉर्ड, SSL प्रमाणपत्र, ब्रांड की नकल के संकेत और ख़तरा डेटाबेस जाँचता हूँ, फिर हर निष्कर्ष उसके स्रोत के साथ दिखाता हूँ।",
   "a.whatIs":
-    "SG16 Identifier चार समस्याओं के लिए एक मुफ़्त जाँच इंजन है: नकली उत्पाद, असत्यापित ख़बरें, नकली ऑनलाइन दुकानें और कृत्रिम मीडिया। हर रिपोर्ट अलग-अलग बताती है कि क्या जाँचा गया, क्या ग़लत साबित हुआ और क्या अब भी अज्ञात है।",
+    "{app} चार समस्याओं के लिए एक मुफ़्त जाँच इंजन है: नकली उत्पाद, असत्यापित ख़बरें, नकली ऑनलाइन दुकानें और कृत्रिम मीडिया। हर रिपोर्ट अलग-अलग बताती है कि क्या जाँचा गया, क्या ग़लत साबित हुआ और क्या अब भी अज्ञात है।",
   "a.howWorks":
     "बढ़िया सवाल! मैं वेबसाइटों, उत्पादों, ख़बरों के दावों और मीडिया फ़ाइलों का विश्लेषण करता हूँ। मैं कई स्रोतों से सबूत जुटाता हूँ और जब सबूत पर्याप्त हों तो भरोसे का स्कोर देता हूँ। मैं कभी अनुमान नहीं लगाता — केवल वही बताता हूँ जो सबूत दिखाते हैं। क्या आप अभी आज़माना चाहेंगे?",
   "a.free":
-    "हाँ। जाँच आम लोगों के लिए मुफ़्त है: न खाता, न सदस्यता, न कार्ड। SG16 का ख़र्च घोषित विज्ञापनों, एफ़िलिएट रेफ़रल और व्यावसायिक सेवाओं से चलता है — कभी भी जाँच के नतीजे से नहीं।",
+    "हाँ। जाँच आम लोगों के लिए मुफ़्त है: न खाता, न सदस्यता, न कार्ड। यह सेवा किसी भी जाँच के नतीजे से पूरी तरह स्वतंत्र होकर काम करती है।",
   "a.languages": "मैं इन भाषाओं में बात कर सकता हूँ: {languages}। इस पैनल के ऊपर दिए भाषा मेन्यू से कोई एक चुनें।",
   "a.changeLanguage": "इस पैनल के ऊपर दिए मेन्यू से कोई भाषा चुनें।",
   "a.fallback": "इसका जवाब अभी मेरे पास नहीं है। मैं इन विषयों में मदद कर सकता हूँ:",
@@ -422,7 +427,7 @@ const HI: Dictionary = {
 };
 
 const RU: Dictionary = {
-  "ui.subtitle": "Спросите меня о SG16 Identifier",
+  "ui.subtitle": "Спросите меня о {app}",
   "ui.placeholder": "Введите вопрос…",
   "ui.send": "Отправить",
   "ui.close": "Закрыть чат",
@@ -433,9 +438,9 @@ const RU: Dictionary = {
   "ui.mutedHint": "Звук робота выключен — включите его, чтобы слышать ответы.",
   "ui.scanning": "Идёт проверка…",
   "ui.you": "Вы",
-  greeting: "Здравствуйте! Я SG16 Robo Manager. Чем могу помочь сегодня?",
+  greeting: "Здравствуйте! Я {assistant}. Чем могу помочь сегодня?",
   "q.verifyWebsite": "Как проверить сайт?",
-  "q.whatIs": "Что такое SG16 Identifier?",
+  "q.whatIs": "Что такое {app}?",
   "q.howWorks": "Как работает проверка?",
   "q.free": "Это бесплатно?",
   "q.languages": "Какие языки вы поддерживаете?",
@@ -443,11 +448,11 @@ const RU: Dictionary = {
   "a.verifyWebsite":
     "Вставьте полный адрес сайта в поле проверки на главной странице и нажмите Identify. Я проверю домен, его DNS- и почтовые записи, SSL-сертификат, признаки подделки бренда и базы угроз, а затем покажу каждый вывод с источником.",
   "a.whatIs":
-    "SG16 Identifier — бесплатный сервис проверки для четырёх задач: поддельные товары, непроверенные новости, клоны интернет-магазинов и синтетические медиа. Каждый отчёт отделяет то, что проверено, то, что опровергнуто, и то, что остаётся неизвестным.",
+    "{app} — бесплатный сервис проверки для четырёх задач: поддельные товары, непроверенные новости, клоны интернет-магазинов и синтетические медиа. Каждый отчёт отделяет то, что проверено, то, что опровергнуто, и то, что остаётся неизвестным.",
   "a.howWorks":
     "Хороший вопрос! Я анализирую сайты, товары, новостные утверждения и медиафайлы. Я собираю данные из нескольких источников и указываю степень уверенности, когда доказательства это позволяют. Я никогда не гадаю — сообщаю только то, что показывают доказательства. Хотите попробовать прямо сейчас?",
   "a.free":
-    "Да. Проверки бесплатны для всех: без аккаунта, подписки и карты. SG16 финансируется за счёт раскрытой рекламы, партнёрских ссылок и услуг для бизнеса — и никогда за счёт результата проверки.",
+    "Да. Проверки бесплатны для всех: без аккаунта, подписки и карты. Сервис работает полностью независимо от результата проверки.",
   "a.languages": "Я могу общаться на этих языках: {languages}. Выберите язык в меню вверху этой панели.",
   "a.changeLanguage": "Выберите язык в меню вверху этой панели.",
   "a.fallback": "Пока у меня нет ответа на этот вопрос. Вот темы, с которыми я могу помочь:",
@@ -475,7 +480,7 @@ const RU: Dictionary = {
 };
 
 const BN: Dictionary = {
-  "ui.subtitle": "SG16 Identifier সম্পর্কে আমাকে জিজ্ঞাসা করুন",
+  "ui.subtitle": "{app} সম্পর্কে আমাকে জিজ্ঞাসা করুন",
   "ui.placeholder": "আপনার প্রশ্ন লিখুন…",
   "ui.send": "পাঠান",
   "ui.close": "চ্যাট বন্ধ করুন",
@@ -486,9 +491,9 @@ const BN: Dictionary = {
   "ui.mutedHint": "রোবট মিউট করা আছে। উত্তর শুনতে আনমিউট করুন।",
   "ui.scanning": "স্ক্যান চলছে…",
   "ui.you": "আপনি",
-  greeting: "হ্যালো! আমি SG16 Robo Manager। আজ আমি আপনাকে কীভাবে সাহায্য করতে পারি?",
+  greeting: "হ্যালো! আমি {assistant}। আজ আমি আপনাকে কীভাবে সাহায্য করতে পারি?",
   "q.verifyWebsite": "আমি কীভাবে একটি ওয়েবসাইট যাচাই করব?",
-  "q.whatIs": "SG16 Identifier কী?",
+  "q.whatIs": "{app} কী?",
   "q.howWorks": "যাচাই কীভাবে কাজ করে?",
   "q.free": "এই সেবা কি বিনামূল্যে?",
   "q.languages": "আপনি কোন কোন ভাষা সমর্থন করেন?",
@@ -496,11 +501,11 @@ const BN: Dictionary = {
   "a.verifyWebsite":
     "হোমপেজের যাচাই বক্সে পুরো ওয়েব ঠিকানাটি পেস্ট করে Identify চাপুন। আমি ডোমেইন ও তার DNS ও মেইল রেকর্ড, SSL সার্টিফিকেট, ব্র্যান্ড নকলের লক্ষণ এবং হুমকি ডেটাবেস পরীক্ষা করি, তারপর প্রতিটি ফলাফল তার উৎসসহ দেখাই।",
   "a.whatIs":
-    "SG16 Identifier চারটি সমস্যার জন্য একটি বিনামূল্যের যাচাই ইঞ্জিন: নকল পণ্য, অযাচাইকৃত খবর, নকল অনলাইন দোকান এবং কৃত্রিম মিডিয়া। প্রতিটি রিপোর্টে আলাদা করে দেখানো হয় কী যাচাই হয়েছে, কী ভুল প্রমাণিত হয়েছে এবং কী এখনও অজানা।",
+    "{app} চারটি সমস্যার জন্য একটি বিনামূল্যের যাচাই ইঞ্জিন: নকল পণ্য, অযাচাইকৃত খবর, নকল অনলাইন দোকান এবং কৃত্রিম মিডিয়া। প্রতিটি রিপোর্টে আলাদা করে দেখানো হয় কী যাচাই হয়েছে, কী ভুল প্রমাণিত হয়েছে এবং কী এখনও অজানা।",
   "a.howWorks":
     "চমৎকার প্রশ্ন! আমি ওয়েবসাইট, পণ্য, খবরের দাবি এবং মিডিয়া ফাইল বিশ্লেষণ করি। আমি একাধিক উৎস থেকে প্রমাণ সংগ্রহ করি এবং প্রমাণ যথেষ্ট হলে একটি আস্থা স্কোর দিই। আমি কখনো অনুমান করি না — প্রমাণ যা দেখায় শুধু তা-ই জানাই। এখনই চেষ্টা করে দেখবেন?",
   "a.free":
-    "হ্যাঁ। সাধারণ মানুষের জন্য যাচাই বিনামূল্যে: কোনো অ্যাকাউন্ট, সাবস্ক্রিপশন বা কার্ড লাগে না। SG16 চলে ঘোষিত বিজ্ঞাপন, অ্যাফিলিয়েট রেফারেল ও ব্যবসায়িক সেবার অর্থে — কখনোই যাচাইয়ের ফলাফলের উপর নির্ভর করে নয়।",
+    "হ্যাঁ। সাধারণ মানুষের জন্য যাচাই বিনামূল্যে: কোনো অ্যাকাউন্ট, সাবস্ক্রিপশন বা কার্ড লাগে না। এই সেবা কোনো যাচাইয়ের ফলাফলের উপর নির্ভর করে না — এটি সম্পূর্ণ স্বাধীনভাবে কাজ করে।",
   "a.languages": "আমি এই ভাষাগুলোতে কথা বলতে পারি: {languages}। এই প্যানেলের উপরের ভাষা মেনু থেকে একটি বেছে নিন।",
   "a.changeLanguage": "এই প্যানেলের উপরের মেনু থেকে একটি ভাষা বেছে নিন।",
   "a.fallback": "এর উত্তর এখনো আমার কাছে নেই। আমি এই বিষয়গুলোতে সাহায্য করতে পারি:",
@@ -531,10 +536,19 @@ const BN: Dictionary = {
 
 const DICTIONARIES: Record<ChatLang, Dictionary> = { en: EN, es: ES, fr: FR, de: DE, "zh-Hans": ZH, ar: AR, hi: HI, ru: RU, bn: BN };
 
-/** Looks up `key` in `lang` (English fallback) and fills `{name}` placeholders. */
+/**
+ * Looks up `key` in `lang` (English fallback) and fills `{name}` placeholders.
+ * `{app}` and `{assistant}` always resolve to this deployment's configured
+ * identity, so no dictionary string names a product or company.
+ */
 export function t(lang: ChatLang, key: MessageKey, params: Record<string, string> = {}) {
   const template = DICTIONARIES[lang]?.[key] ?? EN[key];
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => params[name] ?? match);
+  const merged: Record<string, string> = {
+    app: identity().appName,
+    assistant: identity().roboName,
+    ...params,
+  };
+  return template.replace(/\{(\w+)\}/g, (match, name: string) => merged[name] ?? match);
 }
 
 /* --------------------------------- intents -------------------------------- */
@@ -565,7 +579,7 @@ const INTENT_KEYWORDS: Record<Intent, string[]> = {
     "কীভাবে", "কাজ", "যাচাই",
   ],
   whatIs: [
-    "what is", "what's", "who are you", "about", "sg16", "qué es", "quién eres", "qu'est", "c'est quoi", "was ist", "wer bist",
+    "what is", "what's", "who are you", "about", "qué es", "quién eres", "qu'est", "c'est quoi", "was ist", "wer bist",
     "是什么", "你是谁", "ما هو", "من أنت", "क्या है", "आप कौन", "что такое", "кто вы", "আপনি কে",
   ],
 };
@@ -581,12 +595,22 @@ function keywordMatches(text: string, keyword: string) {
   return new RegExp(`(^|[^a-z])${escaped}${end}`).test(text);
 }
 
-/** Best-matching intent for free text in any supported language, or null. */
+/**
+ * Best-matching intent for free text in any supported language, or null.
+ * Naming the product or the assistant (whatever this deployment calls them)
+ * counts as asking what it is.
+ */
 export function matchIntent(text: string): Intent | null {
   const normalized = text.toLowerCase().normalize("NFC");
+  const id = identity();
+  const ownNames = `${id.appName} ${id.shortName} ${id.roboName}`
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length > 2);
   let best: Intent | null = null;
   let bestScore = 0;
-  for (const [intent, keywords] of Object.entries(INTENT_KEYWORDS) as Array<[Intent, string[]]>) {
+  for (const [intent, baseKeywords] of Object.entries(INTENT_KEYWORDS) as Array<[Intent, string[]]>) {
+    const keywords = intent === "whatIs" ? [...baseKeywords, ...ownNames] : baseKeywords;
     const score = keywords.filter((kw) => keywordMatches(normalized, kw)).length;
     if (score > bestScore) {
       best = intent;

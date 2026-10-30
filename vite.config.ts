@@ -15,7 +15,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
-  // CORS is the Worker's decision (VITEX_CORS_ORIGINS), as in production; Vite's own
+  // CORS is the Worker's decision (GATEWAY_CORS_ORIGINS), as in production; Vite's own
   // middleware would otherwise answer preflights before the Worker sees them.
   server: { cors: false },
   preview: { cors: false },

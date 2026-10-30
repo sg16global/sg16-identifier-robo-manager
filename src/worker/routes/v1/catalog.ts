@@ -5,7 +5,7 @@ import { admit, errorResponse, jsonResponse, preflight } from "@/lib/universal/g
 
 type Ctx = { params: Promise<{ brand: string; model: string }> };
 
-/** The normalised catalogue record SG16 matches products against, with its provenance. */
+/** The normalised catalogue record products are matched against, with its provenance. */
 export async function GET(request: Request, ctx: Ctx) {
   const admission = await admit(request);
   if (admission instanceof Response) return admission;

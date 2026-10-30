@@ -1,4 +1,5 @@
 import { Link } from "@/components/link";
+import { identity } from "@/lib/identity";
 import { LaunchChecklist, ProviderStatus } from "@/components/interactive";
 import {
   IconArrow,
@@ -31,29 +32,28 @@ const SECTIONS = [
 
 const ENV_VARS = [
   ["DATABASE_URL", "required", "PostgreSQL connection string used by Drizzle."],
-  ["ADMIN_ACCESS_CODE", "required", "Code required by /api/admin. Without it the admin console is disabled."],
-  ["GOOGLE_FACTCHECK_API_KEY", "optional", "Enables the Google Fact Check Tools API adapter."],
-  ["WEB_RISK_API_KEY", "optional", "Enables commercial URL reputation via Google Web Risk."],
-  ["SAFE_BROWSING_API_KEY", "optional", "Fallback Safe Browsing credential for non-commercial evaluation."],
-  ["OPENAI_API_KEY", "optional", "Enables the AI claim-comparison and summary adapter on OpenAI."],
-  ["ANTHROPIC_API_KEY / GEMINI_API_KEY / GROQ_API_KEY / …", "optional", "Each enables one more model provider; the first configured one drives the AI adapter."],
-  ["SG16_AI_MODEL", "optional", "Model name for the AI adapter. Defaults to a low-cost model."],
-  ["SG16_AI_BASE_URL", "optional", "OpenAI-compatible base URL for a self-hosted or proxy model."],
-  ["SG16_AI_INPUT_PRICE_PER_M", "optional", "Metering rate per million input tokens. Default 0.05."],
-  ["SG16_AI_OUTPUT_PRICE_PER_M", "optional", "Metering rate per million output tokens. Default 0.25."],
-  ["VITEX_GATEWAY_KEYS", "optional", "API keys for the universal /v1 API. Without one the API stays closed."],
-  ["VITEX_PROVIDERS", "optional", "JSON list of any other model server — OpenAI, Anthropic or Gemini protocol, or any JSON API via a custom template."],
-  ["VITEX_UPSTREAMS", "optional", "JSON map of company APIs reachable through /v1/proxy, credentials attached server-side."],
-  ["VITEX_ALLOW_PRIVATE_TARGETS", "optional", "Lets callers' own endpoints (x-vitex-base-url, /v1/forward) reach private hosts. Default: public only."],
-  ["VITEX_DEFAULT_MODEL", "optional", "<provider>/<model> used when a request names none."],
-  ["VITEX_CORS_ORIGINS", "optional", "Browser origins allowed to call /v1. Empty keeps it server-to-server."],
-  ["TAVILY_API_KEY / SERPER_API_KEY / BING_SEARCH_KEY", "optional", "Enables the licensed web-search adapter."],
-  ["SG16_DAILY_BUDGET_USD", "optional", "Hard daily variable-cost ceiling. Default 12."],
-  ["SG16_RETENTION_DAYS", "optional", "Days before a stored report is deleted. Default 30."],
-  ["SG16_ENABLE_DNS", "optional", "Disables DNS/TLS intelligence lookups when set to false."],
+  ["ADMIN_ACCESS_CODE", "required", "Code required by /api/admin (x-admin-code header). Without it the admin console is disabled."],
+  ["APP_NAME / APP_SHORT_NAME / APP_TAGLINE / APP_DESCRIPTION / APP_KEYWORDS", "optional", "Product name and copy used across the UI, page metadata and chat answers. Neutral defaults when unset."],
+  ["SITE_URL / SERVICE_NAME / ROBO_NAME / REPORT_ID_PREFIX / BOT_USER_AGENT", "optional", "Canonical origin, machine id for /api/health, assistant name, report reference prefix (default RPT) and outbound-fetch user agent."],
+  ["ORG_ENTITY / ORG_TYPE / ORG_JURISDICTION / ORG_REGISTRATION / ORG_FORMED / ORG_WEBSITE / ORG_WEBSITE_LABEL / ORG_EMAIL / ORG_REGISTRY", "optional", "Operating-entity block in the footer. Hidden entirely unless ORG_ENTITY is set."],
+  ["CERTIFICATE_IMAGE / CERTIFICATE_MIME", "optional", "Base64 (or data: URL) image for the footer's secure certificate viewer. Hidden when unset."],
+  ["AI_PROTOCOL / AI_BASE_URL / AI_API_KEY / AI_MODEL / AI_AUTH_HEADER / AI_AUTH_SCHEME / AI_AUTH_QUERY / AI_BINDING / AI_LABEL / AI_PROVIDER_ID", "optional", "One AI model server anywhere in the world: an OpenAI-compatible, Anthropic or Gemini endpoint, a Workers AI binding, or any JSON API through a custom template."],
+  ["AI_INPUT_PRICE_PER_M / AI_OUTPUT_PRICE_PER_M", "optional", "Metering rates per million tokens for the cost model. Defaults 0.05 / 0.25."],
+  ["MODEL_PROVIDERS", "optional", "JSON list of additional model servers for the universal /v1 gateway — any protocol, or custom requestTemplate/responseMap for any JSON API."],
+  ["API_UPSTREAMS", "optional", "JSON map of company APIs reachable through /v1/proxy, credentials attached server-side."],
+  ["GATEWAY_API_KEYS / GATEWAY_RPM / GATEWAY_CORS_ORIGINS / GATEWAY_ALLOW_PRIVATE_TARGETS / DEFAULT_MODEL / DEFAULT_PROVIDER", "optional", "Universal /v1 API keys, per-key rate limit, allowed browser origins, private-target policy for callers' own endpoints (x-gateway-base-url, /v1/forward), and the default <provider>/<model>."],
+  ["SEARCH_CONNECTORS / FACTCHECK_CONNECTORS / REPUTATION_CONNECTORS / CT_CONNECTORS", "optional", "JSON connector lists for web search, published claim reviews, URL reputation and certificate-transparency lookups. Any JSON API, in any region; empty slots degrade honestly in reports."],
+  ["DNS_RESOLVERS / ENABLE_DNS", "optional", "DNS-over-HTTPS resolvers (comma-separated) for domain intelligence; ENABLE_DNS=false turns lookups off."],
+  ["OFFICIAL_DOMAIN_SUFFIXES / REPUTABLE_DOMAINS / MIXED_TRUST_DOMAINS", "optional", "This deployment's source-trust lists for rating retrieved evidence (official / reputable / mixed)."],
+  ["SHORTENER_HOSTS / FREE_HOST_DOMAINS / PAYMENT_TERMS / PROTECTED_BRANDS / SIGNAL_TERMS", "optional", "Risk lexicon: URL shorteners, free hosts, payment-pressure phrases, protected brand names and signal-term JSON — all operator-supplied."],
+  ["PRODUCT_CATALOG / RETAILER_SEARCH_URL", "optional", "Operator-supplied product catalogue seed (JSON, or via the admin console) and an optional retailer-search URL template ({{query}})."],
+  ["SHOWCASE_SOURCE_URL / SHOWCASE_TITLE / SHOWCASE_SUBTITLE / SHOWCASE_CARD_CLASS / SHOWCASE_NAME_CLASS / SHOWCASE_ROLE_CLASS", "optional", "Live card rail read from any page the operator names. The section is hidden when no source is set."],
+  ["RAIL_ITEMS / PRESENCE_ITEMS", "optional", "JSON lists for the optional name rail and flags strip. Both sections hide when empty."],
+  ["DAILY_BUDGET_USD", "optional", "Hard daily variable-cost ceiling. Default 12."],
+  ["RETENTION_DAYS", "optional", "Days before a stored report is deleted. Default 30."],
 ];
 
-const PROJECT_TREE = `sg16identifier/
+const PROJECT_TREE = `universal-identifier/
 ├── index.html                        # app shell: fonts, favicon, default metadata
 ├── src/
 │   ├── main.tsx · router.tsx · App.tsx # React entry, routes, site chrome
@@ -73,7 +73,7 @@ const PROJECT_TREE = `sg16identifier/
 │   │   ├── index.ts                  # Cloudflare Worker: API, page metadata, assets
 │   │   ├── guard.ts                  # Durable Object: rate limits + daily budget
 │   │   ├── html.ts                   # per-page title/description, HTTP 404
-│   │   └── routes/                   # verify · report · meta · stats · engage · admin · health · image · v1
+│   │   └── routes/                   # verify · report · meta · stats · engage · admin · health · image · showcase · certificate · v1
 │   ├── db/                           # drizzle client + schema
 │   └── lib/
 │       ├── verification/
@@ -107,16 +107,15 @@ const DEPLOY_STEPS = [
 ];
 
 const REFERENCES = [
-  ["Google Fact Check Tools API", "https://developers.google.com/fact-check/tools-api", "Search existing fact-checked claims and ClaimReviews."],
-  ["Google Web Risk pricing", "https://cloud.google.com/web-risk/pricing", "Commercial URL-risk lookup costs and terms."],
-  ["OpenAI API pricing", "https://openai.com/api/pricing/", "Model usage rates for the AI adapter cost model."],
   ["Cloudflare Vite plugin", "https://developers.cloudflare.com/workers/vite-plugin/", "Builds the React app and the Worker together and runs the Worker in workerd during development."],
-  ["Supabase billing", "https://supabase.com/docs/guides/platform/manage-your-usage-based-billing", "Database and storage usage allowances."],
   ["OWASP SSRF prevention", "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html", "Guidance implemented in lib/security/url-guard.ts."],
+  ["DNS over HTTPS (RFC 8484)", "https://www.rfc-editor.org/rfc/rfc8484", "Wire format used by the resolver layer in lib/security/doh.ts."],
   ["C2PA / Content Credentials", "https://c2pa.org/", "Provenance manifest specification used by the media module."],
+  ["GS1 General Specifications", "https://www.gs1.org/standards", "Barcode structure and check-digit rules used by the product module."],
 ];
 
 export default function BlueprintPage() {
+  const id = identity();
   return (
     <>
       <section className="relative overflow-hidden pt-14">
@@ -128,7 +127,7 @@ export default function BlueprintPage() {
             <div className="flex flex-wrap items-center gap-3">
               <TonalChip tone="brand">project blueprint</TonalChip>
               <TonalChip tone="neutral">version 1.0</TonalChip>
-              <TonalChip tone="neutral">sg16identifier.com</TonalChip>
+              <TonalChip tone="neutral">{id.siteUrl.replace(/^https?:\/\//, "") || id.appName}</TonalChip>
               <TonalChip tone="ok">implemented — not a mockup</TonalChip>
             </div>
             <h1 className="mt-6 max-w-4xl font-display text-[clamp(2.1rem,5.2vw,4.2rem)] font-semibold leading-[0.97] tracking-[-0.03em] text-paper-50">
@@ -136,7 +135,7 @@ export default function BlueprintPage() {
               <span className="block text-brand-400">and the code that implements it.</span>
             </h1>
             <p className="mt-7 max-w-2xl text-[16.5px] leading-relaxed text-mist-400">
-              This is the project blueprint for SG16 Identifier: what to build first, how the backend
+              This is the project blueprint for {id.appName}: what to build first, how the backend
               should work, which integrations to consider, how to manage cost, and how to launch
               safely. Every section below has a corresponding implementation in this repository —
               navigate to the console to run it.
@@ -185,10 +184,11 @@ export default function BlueprintPage() {
             {/* 01 */}
             <Doc id="vision" n="01" title="Product vision and core principles">
               <p>
-                SG16 Identifier is one platform for investigating authenticity and trustworthiness: a
+                {id.appName} is one platform for investigating authenticity and trustworthiness: a
                 simple interface where anyone can submit text, a link, an image or product details and
-                receive a structured report with evidence and sources. Free for the public, funded by
-                disclosed advertising, affiliate referrals and business services.
+                receive a structured report with evidence and sources. Where the service is monetised —
+                advertising, referrals or business services — that is disclosed, and it operates
+                independently of any check's outcome.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {[
@@ -204,7 +204,7 @@ export default function BlueprintPage() {
                 ))}
               </div>
               <Callout tone="brand" title="The key product rule">
-                SG16 must not pretend that AI can prove everything. Each result distinguishes verified
+                {id.appName} must not pretend that AI can prove everything. Each result distinguishes verified
                 facts, suspicious indicators, conflicting evidence and unknown information. A mobile
                 phone&rsquo;s matching model number does not prove the physical device is genuine, and an
                 article that appears on several websites is not necessarily true.
@@ -220,7 +220,7 @@ export default function BlueprintPage() {
                   ["02", "News & Claim Identifier", "Analyse pasted text, URLs, screenshots and specific claims. Retrieve fact-checks and trustworthy source material. Compare dates, context, source reliability and contradictory evidence.", "/tools/news"],
                   ["03", "Website & Scam Identifier", "Investigate suspicious links, shops, impersonation and scam messages using domain information, reputation feeds and known warning signs. Never open a submitted URL without server-side safety controls.", "/tools/websites"],
                   ["04", "Image & Video Identifier", "Investigate possible manipulation and AI-generated media, compare available search results and source context, inspect metadata — and communicate uncertainty rather than pretending every image can be conclusively authenticated.", "/tools/media"],
-                  ["05", "SG16 Business Verification", "Bulk checks, a verification API with usage limits, reporting, account management, catalogue monitoring and domain-risk alerts. Paid business features while the public core stays free.", "/business"],
+                  ["05", "Business Verification", "Bulk checks, a verification API with usage limits, reporting, account management, catalogue monitoring and domain-risk alerts. Paid business features while the public core stays free.", "/business"],
                 ].map(([n, title, body, href]) => (
                   <Link key={n} href={href} className="group flex items-start gap-5 rounded-sm border border-mist-500/15 bg-ink-900/30 p-5 transition-colors hover:border-brand-500/45">
                     <span className="font-mono text-[12px] text-brand-400">{n}</span>
@@ -284,7 +284,7 @@ export default function BlueprintPage() {
                       ["Cache", "Managed Redis, added when needed", "Deduplicate requests and reduce repeated API cost"],
                       ["Storage", "Private object storage", "Uploads with expiring access links"],
                       ["Hosting", "Cloudflare Workers + static assets", "Edge API, HTTPS, CDN, Durable Object rate limits, image resizing"],
-                      ["AI and APIs", "Vitex universal layer", "Any model provider or company API behind one OpenAI-compatible /v1"],
+                      ["AI and APIs", "Universal gateway layer", "Any model provider or company API behind one OpenAI-compatible /v1"],
                       ["Monitoring", "Error tracking, logs, cost alerts", "Detect failures and unexpected usage"],
                     ].map(([a, b, c]) => (
                       <tr key={a} className="border-b border-mist-500/8 last:border-0">
@@ -308,11 +308,11 @@ export default function BlueprintPage() {
 
             {/* 05 */}
             <Doc id="sources" n="05" title="API and data-source strategy">
-              <p>SG16 combines specialist data sources with AI analysis instead of asking one model to decide everything. Each provider gets its own adapter so it can be replaced without rebuilding the site.</p>
+              <p>{id.appName} combines specialist data sources with AI analysis instead of asking one model to decide everything. Each provider gets its own adapter so it can be replaced without rebuilding the site.</p>
               <div className="mt-6 grid gap-4 md:grid-cols-2">
                 {[
-                  ["News and claim research", ["Google Fact Check Tools API for existing claim reviews", "A licensed web search API for primary sources and official announcements", "RSS and official government, manufacturer and institutional sites where permitted", "An AI model for claim extraction, evidence comparison and readable summaries"], "The AI must cite retrieved evidence. Search snippets alone are never treated as definitive proof."],
-                  ["Website and scam intelligence", ["Google Web Risk for commercial malicious-URL detection, subject to its pricing and terms", "Domain registration data, DNS, TLS certificate details and redirect analysis", "Additional threat-intelligence vendors under suitable commercial licences"], "Google distinguishes its free non-commercial Safe Browsing offering from Web Risk for commercial use."],
+                  ["News and claim research", ["Configured fact-check connectors for existing claim reviews", "Configured web-search connectors for primary sources and official announcements", "RSS and official government, manufacturer and institutional sites where permitted", "An AI model for claim extraction, evidence comparison and readable summaries"], "The AI must cite retrieved evidence. Search snippets alone are never treated as definitive proof."],
+                  ["Website and scam intelligence", ["Configured reputation connectors for malicious-URL detection, subject to their pricing and terms", "Domain registration data, DNS, TLS certificate details and redirect analysis", "Additional threat-intelligence vendors under suitable commercial licences"], "Check each provider's licensing terms: many distinguish free non-commercial tiers from commercial use."],
                   ["Product and electronics information", ["Manufacturer sites and authorised product catalogues", "Official specifications and warranty-check tools where access is permitted", "Licensed product databases, barcode services and retailer feeds", "An internal catalogue of normalised model numbers and specification differences"], "Do not assume every manufacturer exposes a public serial-number verification API."],
                   ["Image provenance and media analysis", ["C2PA Content Credentials validation where provenance metadata exists", "Image similarity or reverse-image search through a licensed provider", "Metadata inspection, perceptual hashing and image analysis models"], "Provenance metadata establishes documented origin and edit history — not the truth of the depicted event."],
                 ].map(([title, items, note]) => (
@@ -531,7 +531,7 @@ export default function BlueprintPage() {
                   ["A", "Advertising", "Educational articles, public information pages and suitable report pages, through an approved provider subject to its policies. Added only once original content, a privacy policy and appropriate navigation exist.", "No deceptive ads, no fake warning banners, nothing designed to look like a verification result."],
                   ["B", "Affiliate partnerships", "Product comparison pages, buying guides and optional links to reputable retailers. Commission on eligible referral purchases, with the relationship disclosed at the link and every click logged.", "Never rank a product as genuine because the seller pays a commission."],
                   ["C", "Business services", "Retailers, marketplace operators, importers, repair shops and organisations pay for batch checks, private dashboards, monitoring, exports, higher limits and support.", "Business payments purchase capacity and workflow features, not more favourable conclusions."],
-                  ["D", "SG16 Identifier API", "Other websites, developers and platforms pay for API keys with usage-based billing and contractual service limits: claim checks, website risk lookups, catalogue matching and report retrieval.", "Started only once the public engine is reliable, licences permit redistribution, and per-request cost is measurable."],
+                  ["D", "Verification API", "Other websites, developers and platforms pay for API keys with usage-based billing and contractual service limits: claim checks, website risk lookups, catalogue matching and report retrieval.", "Started only once the public engine is reliable, licences permit redistribution, and per-request cost is measurable."],
                 ].map(([letter, title, how, rule]) => (
                   <div key={String(title)} className="rounded-sm border border-mist-500/15 bg-ink-900/40 p-5">
                     <div className="flex items-baseline gap-3">
@@ -554,7 +554,7 @@ export default function BlueprintPage() {
                   ["Phase 0", "Week 1", "Planning and validation", ["Confirm the initial service scope", "Create the UI design system and page map", "Set up the repository, environment and provider shortlist", "Define the evidence schema, privacy requirements and spending limits"], "Approved specification and a tested technical plan."],
                   ["Phase 1", "Weeks 2–4", "Working MVP", ["Build the homepage, universal input and report UI", "Implement the backend, PostgreSQL schema and validation", "Integrate fact-check retrieval and safe URL reputation checks", "Add report IDs, citations, usage logging, rate limits and an admin view"], "Real end-to-end checks work with actual provider data; failures are handled safely."],
                   ["Phase 2", "Weeks 5–6", "Private testing", ["Test representative true, false, misleading and unresolved claims", "Test known safe and unsafe URLs through controlled fixtures", "Measure source quality, latency, false positives and per-check cost", "Test mobile layouts, accessibility, security controls and deletion flows"], "The system meets predefined quality and safety thresholds."],
-                  ["Phase 3", "Weeks 7–8", "Public launch", ["Connect sg16identifier.com and enforce HTTPS", "Publish privacy, terms, limitations and correction policies", "Add monitoring, backups, support contact and incident procedures", "Release with transparent limitations and measured request quotas"], "Production health checks pass, costs are bounded, users can report problems."],
+                  ["Phase 3", "Weeks 7–8", "Public launch", ["Connect the production domain and enforce HTTPS", "Publish privacy, terms, limitations and correction policies", "Add monitoring, backups, support contact and incident procedures", "Release with transparent limitations and measured request quotas"], "Production health checks pass, costs are bounded, users can report problems."],
                   ["Phase 4", "After launch", "Expansion and revenue", ["Add product catalogues and manufacturer integrations", "Introduce media provenance and image analysis", "Publish original editorial pages and test advertising eligibility", "Pilot business accounts and a metered API"], "Each expansion has measurable user value, reliable data sources and sustainable unit economics."],
                 ].map(([phase, window, title, items, exit]) => (
                   <div key={String(phase)} className="rounded-sm border border-mist-500/15 bg-ink-900/40 p-5">
@@ -584,7 +584,7 @@ export default function BlueprintPage() {
             </Doc>
 
             {/* 12 */}
-            <Doc id="deployment" n="12" title="Deployment plan for sg16identifier.com">
+            <Doc id="deployment" n="12" title="Deployment plan for the production domain">
               <p>Use a staging environment before publishing the production site.</p>
               <ol className="mt-5 space-y-2.5">
                 {DEPLOY_STEPS.map(([n, h, b]) => (
@@ -697,7 +697,7 @@ export default function BlueprintPage() {
               <div className="rounded-sm border border-brand-500/35 bg-brand-500/6 p-6">
                 <IconScale className="h-7 w-7 text-brand-400" />
                 <p className="mt-5 font-display text-[clamp(1.2rem,2.4vw,1.7rem)] font-semibold leading-snug text-paper-50">
-                  Build SG16 Identifier as one unified platform, but launch it in manageable stages.
+                  Build {id.appName} as one unified platform, but launch it in manageable stages.
                 </p>
                 <ol className="mt-5 space-y-2.5">
                   {[

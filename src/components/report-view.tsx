@@ -280,7 +280,7 @@ export function ReportView({ report, embedded = false }: { report: VerificationR
           {report.sources.length === 0 && (
             <Panel hover={false} className="p-6 text-sm text-mist-500">
               No external sources were retrieved for this check. The findings above come from the
-              local SG16 rules engine only — treat the conclusion accordingly.
+              local rules engine only — treat the conclusion accordingly.
             </Panel>
           )}
           {report.sources.map((source, i) => {
@@ -500,7 +500,7 @@ export function ReportView({ report, embedded = false }: { report: VerificationR
               <TonalChip tone="neutral">commercial relationships disclosed</TonalChip>
             </div>
             <p className="mt-4 max-w-3xl text-xs leading-relaxed text-mist-600">
-              Some links below are commercial. SG16 Identifier may earn a commission if you buy
+              Some links below are commercial. The operator may earn a commission if you buy
               something after clicking one. Commissions are logged for audit and never influence a
               verification result, a confidence figure or a ranking.
             </p>

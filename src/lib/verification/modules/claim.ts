@@ -272,7 +272,7 @@ export async function verifyClaim(input: ModuleInput): Promise<ModuleOutput> {
     "Check the publication date of any image or video attached to the claim — recycled media is more common than fabrication.",
     "Look for the primary source (the study, the court filing, the official statement) behind any number quoted.",
     "If the claim names an organisation, search that organisation's own newsroom for a statement.",
-    "Flag this report if you believe a conclusion is wrong; SG16 reviews corrections.",
+    "Flag this report if you believe a conclusion is wrong; the operator reviews corrections.",
   ];
 
   return {

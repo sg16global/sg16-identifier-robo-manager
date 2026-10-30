@@ -3,6 +3,7 @@ import { Img } from "@/components/img";
 import { ROBOT_EVENT, type ResultTone, type RobotEventDetail } from "@/components/robo-manager";
 import type { MessageKey } from "@/lib/chat-i18n";
 import type { ChatMessage, NewChatMessage, ScanContext } from "@/components/chat-panel";
+import { identity } from "@/lib/identity";
 
 /**
  * Floating Robo Manager chat. This launcher is all that ships with the page;
@@ -100,8 +101,8 @@ export function ChatWidget() {
         onPointerEnter={() => void loadPanel()}
         onFocus={() => void loadPanel()}
         aria-expanded={open}
-        aria-controls="sg16-chat-panel"
-        aria-label={unread > 0 ? `Open chat with the SG16 Robo Manager, ${unread} unread` : open ? "Close chat" : "Open chat with the SG16 Robo Manager"}
+        aria-controls="chat-panel"
+        aria-label={unread > 0 ? `Open chat with the ${identity().roboName}, ${unread} unread` : open ? "Close chat" : `Open chat with the ${identity().roboName}`}
         className={`group fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full border border-brand-800 bg-ink-950 shadow-[0_0_26px_-6px_var(--glow-red-strong)] transition-[opacity,transform,border-color] duration-500 hover:border-brand-500 ${
           visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
         } ${open ? "max-sm:hidden" : ""}`}

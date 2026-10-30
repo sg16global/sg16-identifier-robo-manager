@@ -7,6 +7,7 @@ import { budgetState, DAILY_BUDGET_USD } from "@/lib/security/rate-limit";
 import { gatewayEnabled } from "@/lib/universal/gateway";
 import { defaultRoute, enabledProviders } from "@/lib/universal/providers";
 import { upstreams } from "@/lib/universal/upstreams";
+import { identity } from "@/lib/identity";
 
 /** Liveness probe used by the platform healthcheck and by the operator console. */
 export async function GET() {
@@ -41,7 +42,7 @@ export async function GET() {
   return Response.json(
     {
       ok: database,
-      service: "sg16-identifier",
+      service: identity().serviceName,
       version: "1.0.0",
       database,
       counts: { reports, catalog },

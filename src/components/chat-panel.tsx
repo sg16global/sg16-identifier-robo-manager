@@ -13,6 +13,7 @@ import {
   type MessageKey,
 } from "@/lib/chat-i18n";
 import { hasSpeech, pickVoice, speak, useRobotMuted } from "@/lib/robot-voice";
+import { identity } from "@/lib/identity";
 
 /**
  * The Robo Manager chat panel, loaded on demand by chat-widget.tsx.
@@ -59,8 +60,8 @@ type Props = {
   onClose: () => void;
 };
 
-const LANG_KEY = "sg16:chat-lang";
-const VOICE_KEY = "sg16:chat-voice";
+const LANG_KEY = "app:chat-lang";
+const VOICE_KEY = "app:chat-voice";
 
 const QUESTION_KEY: Record<Exclude<Intent, "greeting">, MessageKey> = {
   verifyWebsite: "q.verifyWebsite",
@@ -260,10 +261,10 @@ export default function ChatPanel({ open, messages, scan, onAppend, onClose }: P
 
   return (
     <div
-      id="sg16-chat-panel"
+      id="chat-panel"
       role="dialog"
       aria-modal="false"
-      aria-labelledby="sg16-chat-title"
+      aria-labelledby="chat-title"
       inert={!open}
       dir={info.dir}
       lang={lang}
@@ -281,8 +282,8 @@ export default function ChatPanel({ open, messages, scan, onAppend, onClose }: P
             <Img src="/assets/robo-manager.png" alt="" fill sizes="40px" className="scale-[1.7] object-cover object-[50%_16%]" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="sg16-chat-title" className="font-display text-[15px] font-semibold text-paper-50" dir="ltr">
-              SG16 Robo Manager
+            <h2 id="chat-title" className="font-display text-[15px] font-semibold text-paper-50" dir="ltr">
+              {identity().roboName}
             </h2>
             <p className="truncate text-[11.5px] text-mist-500">{t(lang, "ui.subtitle")}</p>
           </div>
@@ -297,12 +298,12 @@ export default function ChatPanel({ open, messages, scan, onAppend, onClose }: P
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <label className="sr-only" htmlFor="sg16-chat-lang">
+          <label className="sr-only" htmlFor="chat-lang">
             {t(lang, "ui.language")}
           </label>
           <select
             ref={selectRef}
-            id="sg16-chat-lang"
+            id="chat-lang"
             value={lang}
             onChange={(event) => isChatLang(event.target.value) && changeLanguage(event.target.value)}
             className="min-w-0 flex-1 rounded-sm border border-ink-600 bg-ink-850 px-2.5 py-1.5 text-[12.5px] text-paper-50 outline-none transition-colors hover:border-brand-800 focus:border-brand-500"
@@ -349,7 +350,7 @@ export default function ChatPanel({ open, messages, scan, onAppend, onClose }: P
                   robot ? "rounded-es-sm bg-brand-600 text-white shadow-[0_0_20px_-10px_var(--glow-red-strong)]" : "rounded-ee-sm border border-ink-500 bg-ink-700 text-paper-50"
                 }`}
               >
-                <span className="sr-only">{robot ? "SG16 Robo Manager: " : `${t(lang, "ui.you")}: `}</span>
+                <span className="sr-only">{robot ? `${identity().roboName}: ` : `${t(lang, "ui.you")}: `}</span>
                 {render(m)}
               </p>
               {showActions && (
@@ -373,12 +374,12 @@ export default function ChatPanel({ open, messages, scan, onAppend, onClose }: P
 
       {/* Composer */}
       <form onSubmit={submit} className="flex items-center gap-2 border-t border-ink-600 bg-ink-900/90 p-3">
-        <label className="sr-only" htmlFor="sg16-chat-input">
+        <label className="sr-only" htmlFor="chat-input">
           {t(lang, "ui.placeholder")}
         </label>
         <input
           ref={inputRef}
-          id="sg16-chat-input"
+          id="chat-input"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={t(lang, "ui.placeholder")}

@@ -17,7 +17,7 @@ export interface RateLimitPolicy {
   maxRequests: number;
 }
 
-const GATEWAY_RPM = Number(setting("VITEX_GATEWAY_RPM") ?? "120");
+const GATEWAY_RPM = Number(setting("GATEWAY_RPM") ?? "120");
 
 export const POLICIES: Record<string, RateLimitPolicy> = {
   verify: { windowMs: 60_000, maxRequests: 6 },
@@ -25,13 +25,13 @@ export const POLICIES: Record<string, RateLimitPolicy> = {
   newsletter: { windowMs: 3_600_000, maxRequests: 3 },
   affiliate: { windowMs: 60_000, maxRequests: 30 },
   certificate: { windowMs: 60_000, maxRequests: 10 },
-  // Per API key on the Vitex universal API (/v1/*).
+  // Per API key on the universal gateway API (/v1/*).
   gateway: { windowMs: 60_000, maxRequests: Number.isFinite(GATEWAY_RPM) && GATEWAY_RPM > 0 ? GATEWAY_RPM : 120 },
 };
 
 export type RateLimitResult = WindowResult;
 
-export const DAILY_BUDGET_USD = Number(setting("SG16_DAILY_BUDGET_USD") ?? "12");
+export const DAILY_BUDGET_USD = Number(setting("DAILY_BUDGET_USD") ?? "12");
 
 function guard(): DurableObjectNamespace<GuardState> | undefined {
   return (env as { GUARD?: DurableObjectNamespace<GuardState> }).GUARD;

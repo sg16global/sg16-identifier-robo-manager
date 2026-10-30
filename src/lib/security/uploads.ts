@@ -55,7 +55,7 @@ export async function validateUpload(
   }
 
   const sha256 = await sha256Hex(bytes);
-  const internalName = `sg16/${sha256.slice(0, 2)}/${sha256.slice(2, 10)}-${toHex(randomBytes(4))}.${sniff.kind === "jpeg" ? "jpg" : sniff.kind}`;
+  const internalName = `uploads/${sha256.slice(0, 2)}/${sha256.slice(2, 10)}-${toHex(randomBytes(4))}.${sniff.kind === "jpeg" ? "jpg" : sniff.kind}`;
   return { ok: true, kind: sniff.kind, mime: sniff.mime, internalName, sha256 };
 }
 

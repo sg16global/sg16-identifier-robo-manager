@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type SyntheticEvent } from "react";
+import { identity } from "@/lib/identity";
 
 /**
- * Corporate identity layer for the footer: the operating entity's registration
- * details, and a viewer for its New Mexico Certificate of Organization.
+ * Operator identity layer for the footer: the operating entity's registration
+ * details and a viewer for its certificate image — entirely configuration.
+ *
+ * Everything shown here comes from the deployment's identity (ORG_* variables,
+ * CERTIFICATE_IMAGE; see src/lib/identity.ts). With no organisation configured
+ * the contact block renders nothing; with no certificate image the viewer
+ * button never appears. No entity, jurisdiction or document is built in.
  *
  * The certificate has no static URL. It is fetched from /api/legal/certificate
  * (same-origin fetch only), decoded to a bitmap and painted onto a <canvas> with
@@ -10,19 +16,17 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Synt
  * Right-click, drag, copy and print are blocked inside the viewer. These are
  * deterrents: anything shown on a screen can still be photographed or captured.
  */
-export const COMPANY = {
-  entity: "Saif Tech Global LLC",
-  jurisdiction: "State of New Mexico, USA",
-  registration: "0008128993",
-  type: "Domestic Limited Liability Company",
-  formed: "September 10, 2026",
-  website: "https://www.saiftechglobal.com",
-  websiteLabel: "www.saiftechglobal.com",
-  email: "saif@saifglobal16.info",
-  registry: "https://www.sos.nm.gov/",
-};
 
-const WATERMARK = "SG16IDENTIFIER.COM · VIEW ONLY · NOT FOR REPRODUCTION";
+/** The name shown as the operator: the configured entity, else the product name. */
+export function operatorName(): string {
+  return identity().org?.entity || identity().appName;
+}
+
+function watermarkText(): string {
+  const id = identity();
+  const base = id.siteUrl ? id.siteUrl.replace(/^https?:\/\//, "").toUpperCase() : id.shortName.toUpperCase();
+  return `${base} · VIEW ONLY · NOT FOR REPRODUCTION`;
+}
 
 // Kept for the page's lifetime so reopening the viewer does not refetch.
 let certificateBitmap: Promise<ImageBitmap> | null = null;
@@ -59,7 +63,7 @@ function paintCertificate(canvas: HTMLCanvasElement, bitmap: ImageBitmap) {
   const colWidth = canvas.width * 0.75;
   for (let row = 0, y = -canvas.height; y <= canvas.height; row++, y += rowHeight) {
     for (let x = -canvas.width; x <= canvas.width; x += colWidth) {
-      ctx.fillText(WATERMARK, x + (row % 2) * (colWidth / 2), y);
+      ctx.fillText(watermarkText(), x + (row % 2) * (colWidth / 2), y);
     }
   }
   ctx.restore();
@@ -109,6 +113,11 @@ export function CertificateButton({ className = "" }: { className?: string }) {
     if ((event.ctrlKey || event.metaKey) && (key === "s" || key === "p" || key === "c")) event.preventDefault();
   };
 
+  // No certificate configured on this deployment: no button, no viewer.
+  const id = identity();
+  if (!id.certificateEnabled) return null;
+  const org = id.org;
+
   return (
     <>
       <button
@@ -117,7 +126,7 @@ export function CertificateButton({ className = "" }: { className?: string }) {
         className={`group inline-flex items-center gap-2.5 rounded-full border border-brand-800 bg-brand-500/5 px-4 py-2 text-[12.5px] font-semibold text-brand-400 shadow-[0_0_18px_-8px_var(--glow-red-strong)] transition-colors hover:border-brand-500 hover:bg-brand-500/10 hover:text-paper-50 ${className}`}
       >
         <IconShieldCheck className="h-4 w-4" />
-        Certificate of Organization · Verified
+        Registration certificate · Verified
       </button>
 
       <dialog
@@ -131,9 +140,9 @@ export function CertificateButton({ className = "" }: { className?: string }) {
         <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <header className="flex items-start justify-between gap-4 border-b border-brand-700/60 bg-ink-900 px-5 py-4">
             <div>
-              <p className="rule-label text-brand-400">Corporate identity · official record</p>
+              <p className="rule-label text-brand-400">Operator identity · official record</p>
               <h2 id="certificate-title" className="mt-1.5 font-display text-lg font-semibold text-paper-50">
-                Certificate of Organization — {COMPANY.entity}
+                {org?.type || "Registration certificate"}{org ? ` — ${org.entity}` : ""}
               </h2>
             </div>
             <button
@@ -158,7 +167,7 @@ export function CertificateButton({ className = "" }: { className?: string }) {
                 <canvas
                   ref={canvasRef}
                   role="img"
-                  aria-label={`New Mexico Certificate of Organization for ${COMPANY.entity}, registration ${COMPANY.registration}, effective ${COMPANY.formed}`}
+                  aria-label={`Registration certificate${org ? ` for ${org.entity}` : ""}${org?.registration ? `, registration ${org.registration}` : ""}${org?.formed ? `, effective ${org.formed}` : ""}`}
                   className="pointer-events-none block h-full w-full select-none"
                 />
                 <WatermarkGrid />
@@ -176,19 +185,25 @@ export function CertificateButton({ className = "" }: { className?: string }) {
 
             <aside className="border-t border-brand-700/40 bg-ink-950 p-5 md:border-l md:border-t-0">
               <dl className="space-y-3.5 text-[13px]">
-                <Fact label="Entity" value={COMPANY.entity} />
-                <Fact label="Type" value={COMPANY.type} />
-                <Fact label="Jurisdiction" value={COMPANY.jurisdiction} />
-                <Fact label="Registration no." value={COMPANY.registration} mono />
-                <Fact label="Formed" value={COMPANY.formed} />
+                {org?.entity && <Fact label="Entity" value={org.entity} />}
+                {org?.type && <Fact label="Type" value={org.type} />}
+                {org?.jurisdiction && <Fact label="Jurisdiction" value={org.jurisdiction} />}
+                {org?.registration && <Fact label="Registration no." value={org.registration} mono />}
+                {org?.formed && <Fact label="Formed" value={org.formed} />}
               </dl>
               <div className="dash-accent mt-5 rounded-sm bg-ink-900/80 p-3.5 text-[12px] leading-relaxed text-mist-400">
-                Evidence before conclusion: don’t take this image on trust. Search registration{" "}
-                <span className="font-mono text-paper-50">{COMPANY.registration}</span> at the{" "}
-                <a href={COMPANY.registry} target="_blank" rel="noopener noreferrer" className="text-brand-400 underline-offset-2 hover:underline">
-                  New Mexico Secretary of State
-                </a>{" "}
-                to confirm it independently.
+                {org?.registry && org?.registration ? (
+                  <>
+                    Evidence before conclusion: don’t take this image on trust. Search registration{" "}
+                    <span className="font-mono text-paper-50">{org.registration}</span> at the{" "}
+                    <a href={org.registry} target="_blank" rel="noopener noreferrer" className="text-brand-400 underline-offset-2 hover:underline">
+                      official registry
+                    </a>{" "}
+                    to confirm it independently.
+                  </>
+                ) : (
+                  <>Evidence before conclusion: don’t take this image on trust — confirm the registration through the issuing authority’s own public register.</>
+                )}
               </div>
               <p className="mt-4 text-[11px] leading-relaxed text-mist-600">
                 Shown for identification only. Reproduction or redistribution is not permitted.
@@ -201,37 +216,53 @@ export function CertificateButton({ className = "" }: { className?: string }) {
   );
 }
 
-/** Contact column for the footer grid. */
+/** Contact column for the footer grid; renders nothing without configured org details. */
 export function CompanyContact() {
+  const org = identity().org;
+  if (!org) return null;
   const item = "flex items-start gap-3 text-sm text-mist-400";
   return (
     <div>
       <h3 className="rule-label text-paper-50">Contact</h3>
       <span className="mt-3 block h-px w-8 bg-brand-500/70" />
       <ul className="mt-4 space-y-3.5">
-        <li className={item}>
-          <IconMail className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
-          <a href={`mailto:${COMPANY.email}`} className="break-all transition-colors hover:text-brand-400">
-            {COMPANY.email}
-          </a>
-        </li>
-        <li className={item}>
-          <IconGlobe className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
-          <a href={COMPANY.website} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-brand-400">
-            {COMPANY.websiteLabel} <span aria-hidden className="text-brand-500">↗</span>
-          </a>
-        </li>
+        {org.email && (
+          <li className={item}>
+            <IconMail className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
+            <a href={`mailto:${org.email}`} className="break-all transition-colors hover:text-brand-400">
+              {org.email}
+            </a>
+          </li>
+        )}
+        {org.website && (
+          <li className={item}>
+            <IconGlobe className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
+            <a href={org.website} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-brand-400">
+              {org.websiteLabel || org.website} <span aria-hidden className="text-brand-500">↗</span>
+            </a>
+          </li>
+        )}
         <li className={item}>
           <IconBuilding className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
           <span>
-            <span className="block text-paper-50">{COMPANY.entity}</span>
-            <span className="mt-1 block text-xs leading-relaxed text-mist-500">
-              Reg. No. <span className="font-mono text-mist-300">{COMPANY.registration}</span>
-              <br />
-              {COMPANY.jurisdiction}
-              <br />
-              Formed {COMPANY.formed}
-            </span>
+            <span className="block text-paper-50">{org.entity}</span>
+            {(org.registration || org.jurisdiction || org.formed) && (
+              <span className="mt-1 block text-xs leading-relaxed text-mist-500">
+                {org.registration && (
+                  <>
+                    Reg. No. <span className="font-mono text-mist-300">{org.registration}</span>
+                    <br />
+                  </>
+                )}
+                {org.jurisdiction && (
+                  <>
+                    {org.jurisdiction}
+                    <br />
+                  </>
+                )}
+                {org.formed && <>Formed {org.formed}</>}
+              </span>
+            )}
           </span>
         </li>
       </ul>
@@ -250,13 +281,14 @@ function Fact({ label, value, mono = false }: { label: string; value: string; mo
 
 /** Transparent SVG watermark grid laid over the certificate; never receives pointer events. */
 function WatermarkGrid() {
+  const label = `${identity().shortName.toUpperCase()} · VIEW ONLY`;
   return (
     <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full select-none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="cert-watermark" width="190" height="120" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
           <path d="M0 0H190M0 0V120" stroke="rgb(255 23 68 / 0.10)" strokeWidth="1" />
           <text x="10" y="64" fill="rgb(255 23 68 / 0.16)" fontFamily="IBM Plex Mono, monospace" fontSize="11" fontWeight="600" letterSpacing="2">
-            SG16 · VIEW ONLY
+            {label}
           </text>
         </pattern>
       </defs>

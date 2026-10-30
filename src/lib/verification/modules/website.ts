@@ -6,7 +6,7 @@ import {
   hostnameDeceptionSignals,
   hostnameHasBrand,
   isUrlShortenerOrFreeHost,
-  lookupWebRisk,
+  lookupReputation,
   probeHttp,
   registrableDomain,
   tldRiskScore,
@@ -15,7 +15,8 @@ import {
   type TlsProfile,
 } from "@/lib/providers/risk";
 import { parseUntrustedUrl } from "@/lib/security/url-guard";
-import { IMPERSONATED_BRANDS, SCAM_SIGNALS, URL_SCAM_SIGNALS } from "@/lib/verification/lexicon";
+import { URL_SCAM_SIGNALS, allScamSignals, protectedBrandsWithCatalog } from "@/lib/verification/lexicon";
+import { identity } from "@/lib/identity";
 import {
   StepTimer,
   extractPrices,
@@ -54,7 +55,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
     }
     if (!parsed?.ok || !parsed.url) {
       findings.push(makeFinding("target", "URL rejected by the SSRF guard",
-        `${parsed?.reason ?? "Invalid URL"} — SG16 will not resolve or fetch this target.`,
+        `${parsed?.reason ?? "Invalid URL"} — ${identity().appName} will not resolve or fetch this target.`,
         "risk", 1.2));
       limitations.push("The target could not be inspected because it failed server-side safety validation.");
       return "failed";
@@ -82,11 +83,15 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
         findings.push(makeFinding("url", signal.label, signal.why, signal.weight >= 0.2 ? "risk" : "warning", signal.weight));
       }
     }
-    const deception = hostnameDeceptionSignals(hostname, IMPERSONATED_BRANDS);
+    // Brands this deployment protects: operator configuration plus the
+    // brands in its product catalogue. With none configured, only the
+    // structural deception signals below can fire.
+    const protected_ = await protectedBrandsWithCatalog();
+    const deception = hostnameDeceptionSignals(hostname, protected_);
     for (const d of deception) {
       findings.push(makeFinding("impersonation", "Possible brand impersonation", d, "risk", 0.55));
     }
-    const brandInHost = IMPERSONATED_BRANDS.filter((b) => hostnameHasBrand(hostname, b));
+    const brandInHost = protected_.filter((b) => hostnameHasBrand(hostname, b));
     if (brandInHost.length && !deception.length) {
       const registrable = registrableDomain(hostname);
       const body = registrable.split(".")[0];
@@ -183,13 +188,13 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
     return "done";
   });
 
-  await timer.run("Commercial URL reputation lookup", "Google Web Risk / Safe Browsing threat categories.", async () => {
+  await timer.run("Commercial URL reputation lookup", "Threat categories from the deployment's configured reputation connectors.", async () => {
     if (!primaryRaw || !input.flags.expensiveEnabled) {
-      providers.push({ provider: "web-risk", operation: "uris:search", status: "disabled", latencyMs: 0, costUsd: 0, detail: "No key configured or expensive operations switched off." });
+      providers.push({ provider: "reputation", operation: "uris:search", status: "disabled", latencyMs: 0, costUsd: 0, detail: "No reputation connector configured or expensive operations switched off." });
       limitations.push("No commercial URL-reputation lookup was performed for this check.");
       return "skipped";
     }
-    const result = await lookupWebRisk(primaryRaw, input.reportId);
+    const result = await lookupReputation(primaryRaw, input.reportId);
     providers.push(result.call);
     ctx.threats = result.threats;
     if (ctx.threats.length) {
@@ -197,7 +202,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
         "A commercial URL-intelligence provider returned one or more threat classifications for this address. Do not submit credentials or payment details here.",
         "risk", 1.6));
       sources.push({
-        provider: "web-risk",
+        provider: "reputation",
         title: "Commercial URL reputation lookup",
         excerpt: `Threat categories returned: ${ctx.threats.join(", ")}`,
         stance: "contradicts",
@@ -207,7 +212,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
       });
     } else {
       findings.push(makeFinding("reputation", "No threat classification returned",
-        "The reputation provider returned no MALWARE, SOCIAL_ENGINEERING or UNWANTED_SOFTWARE classification. Absence from a blocklist is not an endorsement — coverage is incomplete and new domains take time to be classified.",
+        "The reputation provider returned no malware, social-engineering or unwanted-software classification. Absence from a blocklist is not an endorsement — coverage is incomplete and new domains take time to be classified.",
         "info", 0.15));
     }
     return ctx.threats.length ? "done" : "done";
@@ -276,7 +281,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
   });
 
   await timer.run("Message-language analysis", "Apply the scam lexicon to the submitted text.", async () => {
-    const hits = SCAM_SIGNALS.filter((s) => s.re.test(text));
+    const hits = allScamSignals().filter((s) => s.re.test(text));
     for (const h of hits) {
       findings.push(makeFinding("language", h.label, h.why, h.weight >= 0.2 ? "risk" : "warning", h.weight));
     }
@@ -287,7 +292,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
     }
     if (!hits.length && text.length > 40) {
       findings.push(makeFinding("language", "No scam-language signals matched",
-        "The submitted text does not use urgency, prize, payment-method, credential or guaranteed-return framing from the SG16 lexicon.",
+        "The submitted text does not use urgency, prize, payment-method, credential or guaranteed-return framing from the signal lexicon.",
         "positive", 0.5));
     }
     const prices = extractPrices(text);
@@ -337,7 +342,7 @@ export async function verifyWebsite(input: ModuleInput): Promise<ModuleOutput> {
     : [
         "Paste the full link, email header or listing URL to add domain, DNS, TLS and page-behaviour evidence.",
         "Never rely on the display name of a sender — check the actual address in the email headers.",
-        "Flag this report if you believe a conclusion is wrong; SG16 reviews corrections.",
+        "Flag this report if you believe a conclusion is wrong; the operator reviews corrections.",
       ];
 
   return {
