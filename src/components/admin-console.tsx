@@ -47,7 +47,7 @@ type AdminLoad = { ok: true; data: AdminData } | { ok: false; message: string };
 async function fetchAdmin(accessCode: string): Promise<AdminLoad> {
   try {
     // The code travels in a header, never the URL (URLs end up in server and CDN logs).
-    const res = await fetch("/api/admin", { cache: "no-store", headers: { "x-sg16-admin": accessCode } });
+    const res = await fetch("/api/admin", { cache: "no-store", headers: { "x-admin-code": accessCode } });
     const json = (await res.json()) as AdminData;
     return res.ok && json.ok ? { ok: true, data: json } : { ok: false, message: json.error ?? `HTTP ${res.status}` };
   } catch (error) {
@@ -56,9 +56,9 @@ async function fetchAdmin(accessCode: string): Promise<AdminLoad> {
 }
 
 export function AdminConsole() {
-  const [code, setCode] = useState(() => sessionStorage.getItem("sg16:admin") ?? "");
+  const [code, setCode] = useState(() => sessionStorage.getItem("app:admin") ?? "");
   const [data, setData] = useState<AdminData | null>(null);
-  const [state, setState] = useState<"locked" | "loading" | "ready" | "error">(() => (sessionStorage.getItem("sg16:admin") ? "loading" : "locked"));
+  const [state, setState] = useState<"locked" | "loading" | "ready" | "error">(() => (sessionStorage.getItem("app:admin") ? "loading" : "locked"));
   const [message, setMessage] = useState("");
   const [messageOk, setMessageOk] = useState(true);
 
@@ -79,13 +79,13 @@ export function AdminConsole() {
 
   useEffect(() => {
     // A stored code starts the console in "loading" (see the state initialiser).
-    const stored = sessionStorage.getItem("sg16:admin");
+    const stored = sessionStorage.getItem("app:admin");
     if (stored) void fetchAdmin(stored).then(apply);
   }, [apply]);
 
   async function unlock(event: React.FormEvent) {
     event.preventDefault();
-    sessionStorage.setItem("sg16:admin", code);
+    sessionStorage.setItem("app:admin", code);
     setState("loading");
     await load(code);
   }
@@ -94,7 +94,7 @@ export function AdminConsole() {
     if (!code) return;
     const res = await fetch("/api/admin", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-sg16-admin": code },
+      headers: { "content-type": "application/json", "x-admin-code": code },
       body: JSON.stringify({ action, ...extra }),
     });
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; inserted?: number; removed?: number; error?: string };
@@ -433,7 +433,7 @@ export function AdminConsole() {
           </button>
           <button
             type="button"
-            onClick={() => { sessionStorage.removeItem("sg16:admin"); setCode(""); setData(null); setState("locked"); }}
+            onClick={() => { sessionStorage.removeItem("app:admin"); setCode(""); setData(null); setState("locked"); }}
             className="inline-flex items-center gap-2 rounded-sm border border-risk-500/35 px-4 py-2.5 text-[13px] text-risk-400 transition-colors hover:bg-risk-500/10"
           >
             <IconLock className="h-4 w-4" /> Lock console

@@ -1,5 +1,11 @@
-import { lookupAll } from "@/lib/security/doh";
+import { identity } from "@/lib/identity";
+import { dnsConfigured, lookupAll } from "@/lib/security/doh";
 import { isIP, isIPv4, isIPv6 } from "@/lib/security/ip";
+
+/** Outbound fetches identify themselves with the deployment's configured bot agent. */
+function botUserAgent(): string {
+  return identity().botUserAgent;
+}
 
 /**
  * SSRF defence for the URL-fetching backend (blueprint §8, OWASP guidance).
@@ -101,14 +107,26 @@ export function parseUntrustedUrl(raw: string): UrlParseResult {
   return { ok: true, url: parsed };
 }
 
-/** Resolves a hostname and confirms every returned address is public. */
+/**
+ * Resolves a hostname and confirms every returned address is public.
+ *
+ * When the operator has not configured any DNS resolver (DNS_RESOLVERS),
+ * name resolution cannot be inspected here; the check then falls back to the
+ * platform's own public-IP enforcement (the `global_fetch_strictly_public`
+ * compatibility flag makes every outbound fetch refuse private address
+ * space), and the report records that the name was not independently
+ * resolved. Literal IP addresses are always screened locally.
+ */
 export async function assertPublicResolution(
   hostname: string,
-): Promise<{ ok: boolean; addresses: string[]; reason?: string }> {
+): Promise<{ ok: boolean; addresses: string[]; reason?: string; unresolved?: boolean }> {
   if (isIP(hostname)) {
     return isPrivateAddress(hostname)
       ? { ok: false, addresses: [hostname], reason: "Literal private IP address" }
       : { ok: true, addresses: [hostname] };
+  }
+  if (!dnsConfigured()) {
+    return { ok: true, addresses: [], unresolved: true };
   }
   try {
     const addresses = await lookupAll(hostname);
@@ -187,8 +205,7 @@ export async function safeFetch(
         redirect: "manual",
         signal: controller.signal,
         headers: {
-          "user-agent":
-            "Mozilla/5.0 (compatible; SG16-Identifier/1.0; +https://sg16identifier.com/bot)",
+          "user-agent": botUserAgent(),
           accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.5",
           ...headers,
         },

@@ -1,10 +1,11 @@
 /**
- * Vitex universal gateway — shared contract.
+ * Universal gateway — shared contract.
  *
- * Every model call, internal or external, is expressed in the OpenAI Chat
- * Completions shape: it is the de-facto lingua franca that existing SDKs and
- * tools already speak. Protocol adapters translate it to each provider's wire
- * format and back, so callers never special-case a provider.
+ * Every model call, internal or external, is expressed in the canonical chat
+ * completions JSON shape: the de-facto lingua franca that existing SDKs and
+ * tools already speak. Protocol adapters translate it to each configured
+ * server's wire format and back, so callers never special-case a provider —
+ * and any server, anywhere, can be attached without code changes.
  */
 
 export type ChatRole = "system" | "developer" | "user" | "assistant" | "tool";
@@ -48,7 +49,7 @@ export interface ChatRequest {
   tool_choice?: ToolChoice;
   response_format?: { type: "text" | "json_object" | "json_schema"; json_schema?: { name?: string; schema?: unknown } };
   user?: string;
-  /** Any other field reaches OpenAI-compatible providers unchanged. */
+  /** Any other field reaches chat-completions wire providers unchanged. */
   [field: string]: unknown;
 }
 
@@ -95,7 +96,7 @@ export interface ChatChunk {
 }
 
 /**
- * A failure that reaches the gateway's caller as an OpenAI-style error.
+ * A failure that reaches the gateway's caller in the wire format's error shape.
  * `status` is what the caller receives; `retryable` says whether another
  * model in the fallback chain may succeed where this one did not.
  */

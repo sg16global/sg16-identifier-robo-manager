@@ -1,4 +1,5 @@
 import { loadReport, recordFeedback } from "@/lib/db/reports";
+import { reportIdPattern } from "@/lib/identity";
 import { POLICIES, consumeRateLimit, requestFingerprint } from "@/lib/security/rate-limit";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -6,7 +7,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const publicId = id.trim().toUpperCase();
-  if (!/^SG16-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(publicId)) {
+  if (!reportIdPattern().test(publicId)) {
     return Response.json({ ok: false, error: "Malformed report reference." }, { status: 400 });
   }
   try {
@@ -63,6 +64,6 @@ export async function POST(request: Request, ctx: Ctx) {
 
   return Response.json({
     ok: true,
-    message: "Correction received. SG16 reviews disputed results and republishes where the evidence was wrong.",
+    message: "Correction received. The operator reviews disputed results and republishes where the evidence was wrong.",
   });
 }

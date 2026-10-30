@@ -1,3 +1,4 @@
+import { identity } from "@/lib/identity";
 import type { ProviderCall } from "@/lib/types";
 import { disabled, meter } from "@/lib/providers/registry";
 import { callModel, costOf } from "@/lib/universal/chat";
@@ -5,14 +6,15 @@ import { defaultRoute } from "@/lib/universal/providers";
 import type { ChatRequest } from "@/lib/universal/types";
 
 /**
- * AI reasoning adapter (blueprint §5).
+ * AI reasoning adapter.
  *
- * Chat completions with a JSON contract, sent to whichever model the Vitex
- * universal layer is configured for: any OpenAI-compatible server, Anthropic,
- * Gemini or Workers AI (src/lib/universal). The model is used for claim
- * decomposition, evidence comparison and drafting human-readable text — never
- * for inventing sources. When no provider is configured the engine falls back
- * to the deterministic rules pipeline and says so in the report.
+ * Chat completions with a JSON contract, sent to whichever model server the
+ * operator configured through the universal layer (src/lib/universal) — any
+ * protocol, any vendor, any region, or the platform's own inference binding.
+ * The model is used for claim decomposition, evidence comparison and drafting
+ * human-readable text — never for inventing sources. When no server is
+ * configured the engine falls back to the deterministic rules pipeline and
+ * says so in the report.
  */
 
 export interface AiResult<T> {
@@ -55,7 +57,7 @@ export async function aiStructured<T>({
   if (!route) {
     return {
       json: null,
-      reasoning: "No AI provider is configured. This report was produced entirely by the deterministic SG16 rules engine.",
+      reasoning: "No AI provider is configured. This report was produced entirely by the deterministic rules engine.",
       call: disabled("ai-analysis", operation, "No AI provider configured — rules engine only."),
     };
   }
@@ -78,16 +80,16 @@ ${schemaHint}
 ${user.slice(0, 12000)}
 </content>`;
 
-  // Claude and Gemini models think before answering and that thinking counts
-  // against the output limit, so a short JSON budget needs headroom there.
-  const thinks = route.provider.protocol === "anthropic" || route.provider.protocol === "gemini";
+  // Some servers run internal reasoning before answering and that thinking
+  // counts against the output limit, so a short JSON budget needs headroom.
+  const thinks = route.provider.protocol === "messages" || route.provider.protocol === "generate-content";
   const request: ChatRequest = {
     model: route.model,
     temperature,
     max_tokens: thinks ? Math.max(maxTokens, 4096) : maxTokens,
     ...(route.provider.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
     messages: [
-      { role: "system", content: "You are the SG16 Identifier verification analyst. You output strict JSON." },
+      { role: "system", content: `You are the ${identity().appName} verification analyst. You output strict JSON.` },
       { role: "user", content: prompt },
     ],
   };

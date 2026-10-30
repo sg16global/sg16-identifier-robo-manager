@@ -1,7 +1,8 @@
 import { Img } from "@/components/img";
 import { useEffect, useRef, useState } from "react";
-import { fetchPioneers } from "@/components/pioneers-section";
-import type { Pioneer } from "@/lib/types";
+import { fetchShowcase } from "@/components/showcase-section";
+import type { ShowcaseItem } from "@/lib/types";
+import { identity } from "@/lib/identity";
 import { pageHasUserActivation, speak, useRobotMuted, useRobotSpeaking, writeMuted } from "@/lib/robot-voice";
 
 /**
@@ -21,7 +22,7 @@ import { pageHasUserActivation, speak, useRobotMuted, useRobotSpeaking, writeMut
  *
  * The chat widget listens to the same event for scan context.
  */
-export const ROBOT_EVENT = "sg16:robot";
+export const ROBOT_EVENT = "app:robot";
 export type ResultTone = "ok" | "warn" | "risk" | "unknown";
 export type RobotSignal = "focus" | "blur" | "scan" | "error" | `result-${ResultTone}`;
 export type RobotEventDetail = { signal: RobotSignal; category?: string; status?: string };
@@ -36,13 +37,19 @@ const SIZES = "(min-width: 1280px) 240px, (min-width: 1024px) 210px, 180px";
 // How long the verdict lights stay on before the robot settles back to idle.
 const RESULT_HOLD_MS = 14000;
 
-const BUBBLE: Record<RobotState, string> = {
-  idle: "Hello. I am the SG16 Robo Manager. What are we verifying today?",
-  typing: "Hello. I am the SG16 Robo Manager. What are we verifying today?",
-  scanning: "Scanning database… Cross-referencing evidence…",
-  result: "Verdict reached. Show me the evidence.",
-  error: "The scan could not finish. Check the input and try again.",
-};
+function bubbleText(state: RobotState): string {
+  switch (state) {
+    case "idle":
+    case "typing":
+      return `Hello. I am the ${identity().roboName}. What are we verifying today?`;
+    case "scanning":
+      return "Scanning database… Cross-referencing evidence…";
+    case "result":
+      return "Verdict reached. Show me the evidence.";
+    default:
+      return "The scan could not finish. Check the input and try again.";
+  }
+}
 
 const STATE_LABEL: Record<RobotState, string> = {
   idle: "Standing by",
@@ -70,17 +77,25 @@ const TONE_DOT: Record<ResultTone, string> = {
 /* ---------------------------------- tour ---------------------------------- */
 
 // The platform tour, spoken line after line (each starts when the previous one
-// ends), then 5 s of silence, then again from the top. Line 3 names the pioneers
-// from the live /api/pioneers list; until it loads, or if it cannot, the tour
-// skips the pioneers lines rather than reading names it has not fetched.
-const TOUR_WELCOME =
-  "Hello, welcome. I am the SG16 Identifier Robo Manager. How can I help you? We verify News Claims, Websites, Products, Media, and Business domains.";
-const TOUR_PIONEERS_INTRO = "Let us introduce the minds behind modern intelligence. Our AI Pioneers:";
-const TOUR_CLOSING = "Evidence before conclusion. How can I assist you today?";
+// ends), then 5 s of silence, then again from the top. The showcase line names
+// the entries from the live /api/showcase list; until it loads, or if it cannot
+// (or no showcase source is configured), the tour skips those lines rather than
+// reading names it has not fetched. All wording comes from the deployment
+// identity, so no product or assistant name is hardcoded here.
+function tourWelcome(): string {
+  const id = identity();
+  return `Hello, welcome. I am the ${id.roboName}, here with ${id.appName}. How can I help you? We verify News Claims, Websites, Products, Media, and Business domains.`;
+}
+function tourShowcaseIntro(): string {
+  return `Let us introduce the minds behind modern intelligence. Our ${identity().showcase.title}:`;
+}
+function tourClosing(): string {
+  return `${identity().tagline}. How can I assist you today?`;
+}
 
-/** "Norbert Wiener. Claude Shannon. … And Arthur Samuel." */
-function pioneersLine(pioneers: Pioneer[]) {
-  const names = pioneers.map((p) => p.name.trim()).filter(Boolean);
+/** "Ada Lovelace. Alan Turing. … And Grace Hopper." */
+function showcaseLine(items: ShowcaseItem[]) {
+  const names = items.map((p) => p.name.trim()).filter(Boolean);
   return names.map((name, i) => (i === names.length - 1 && names.length > 1 ? `And ${name}.` : `${name}.`)).join(" ");
 }
 const TOUR_START_MS = 10000;
@@ -95,7 +110,7 @@ let taskStarted = false;
 
 /** True while the chat widget's panel is open: the visitor is already engaged. */
 function chatIsOpen() {
-  const panel = document.getElementById("sg16-chat-panel");
+  const panel = document.getElementById("chat-panel");
   return panel !== null && !panel.inert;
 }
 
@@ -118,19 +133,21 @@ export function RoboManager({ className = "" }: { className?: string }) {
     // Bumped on every interruption so callbacks from a cancelled line are ignored.
     let generation = 0;
     let lineInFlight = false;
-    // `latest` follows the live pioneers list; `round` is fixed for one pass of
+    // `latest` follows the live showcase list; `round` is fixed for one pass of
     // the tour so a list that arrives mid-round never shifts the line numbers.
-    let latest = [TOUR_WELCOME, TOUR_CLOSING];
+    let latest = [tourWelcome(), tourClosing()];
     let round = latest;
-    const pioneers = new AbortController();
-    fetchPioneers(pioneers.signal)
-      .then(({ pioneers: list }) => {
-        const names = pioneersLine(list);
-        if (names) latest = [TOUR_WELCOME, TOUR_PIONEERS_INTRO, names, TOUR_CLOSING];
-      })
-      .catch(() => {
-        // Pioneers unavailable: keep the short tour.
-      });
+    const showcase = new AbortController();
+    if (identity().showcase.sourceUrl) {
+      fetchShowcase(showcase.signal)
+        .then(({ items: list }) => {
+          const names = showcaseLine(list);
+          if (names) latest = [tourWelcome(), tourShowcaseIntro(), names, tourClosing()];
+        })
+        .catch(() => {
+          // Showcase unavailable: keep the short tour.
+        });
+    }
 
     const schedule = (line: number, ms: number) => {
       clearTimeout(timer);
@@ -191,7 +208,7 @@ export function RoboManager({ className = "" }: { className?: string }) {
     schedule(0, TOUR_START_MS);
     return () => {
       stop({ silence: true });
-      pioneers.abort();
+      showcase.abort();
       window.removeEventListener(ROBOT_EVENT, onSignal);
       window.removeEventListener(ROBOT_EVENT, onScan);
     };
@@ -262,7 +279,7 @@ export function RoboManager({ className = "" }: { className?: string }) {
           </span>
         </div>
         <p key={state} className="mt-1.5 min-h-[3.4em] animate-rise text-[12.5px] leading-snug text-mist-200">
-          {BUBBLE[state]}
+          {bubbleText(state)}
         </p>
         <span aria-hidden className="absolute -bottom-[5px] left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-b border-r border-brand-800 bg-ink-950" />
       </div>

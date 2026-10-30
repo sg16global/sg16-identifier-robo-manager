@@ -4,6 +4,7 @@ import { productCatalog, verificationReports } from "@/db/schema";
 import { listRecentReports } from "@/lib/db/reports";
 import { getProviderConfigs } from "@/lib/providers/registry";
 import { DAILY_BUDGET_USD, budgetState } from "@/lib/security/rate-limit";
+import { identityJson } from "@/lib/identity";
 
 /** Public read-only metadata: recent checks, catalogue browser, provider status. */
 export async function GET(request: Request) {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   const section = url.searchParams.get("section") ?? "all";
   const search = url.searchParams.get("q")?.slice(0, 80);
 
-  const out: Record<string, unknown> = {};
+  const out: Record<string, unknown> = { identity: identityJson() };
 
   try {
     if (section === "all" || section === "recent") {

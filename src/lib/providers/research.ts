@@ -2,12 +2,23 @@ import type { EvidenceSource, ProviderCall } from "@/lib/types";
 import { disabled, meter, skipped } from "@/lib/providers/registry";
 import { truncate } from "@/lib/utils";
 import { setting } from "@/lib/settings";
+import {
+  connectors,
+  fieldArray,
+  fieldString,
+  runConnector,
+  type ConnectorSpec,
+} from "@/lib/connectors";
 
 /**
- * News & claim research adapters (blueprint §5).
- *  - Google Fact Check Tools API → existing ClaimReviews
- *  - licensed web search          → primary sources & corroborating reporting
- * Both degrade to a recorded "skipped/disabled" provider call, never a crash.
+ * News & claim research through operator-configured connectors:
+ *  - FACTCHECK_CONNECTORS → published claim reviews
+ *  - SEARCH_CONNECTORS    → primary sources & corroborating reporting
+ *
+ * Which services sit behind those slots is entirely a deployment decision —
+ * any JSON API, in any region, described in configuration (src/lib/connectors.ts).
+ * Every slot degrades to a recorded "skipped/disabled" provider call, never a
+ * crash, and the report says honestly when nothing was retrieved.
  */
 
 export interface FactCheckHit {
@@ -18,6 +29,7 @@ export interface FactCheckHit {
   reviewUrl?: string;
   reviewDate?: string;
   languageCode?: string;
+  connector: string;
 }
 
 export interface SearchResult {
@@ -28,25 +40,42 @@ export interface SearchResult {
   publishedAt?: string;
 }
 
-const OFFICIAL_DOMAIN_HINTS = [
-  ".gov", ".int", ".edu", ".mil", ".nhs.uk", ".ac.uk", ".gc.ca", ".europa.eu",
+/**
+ * Domain-class trust tiers. Only *structural* suffix conventions ship as
+ * defaults (second-level domains reserved for government, education,
+ * military and international bodies); every named-domain list is operator
+ * data, because which publishers an operation trusts is a local decision:
+ *
+ *   OFFICIAL_DOMAIN_SUFFIXES  extra structural suffixes (comma list)
+ *   REPUTABLE_DOMAINS         domains this deployment treats as reputable
+ *   MIXED_TRUST_DOMAINS       user-generated / social domains ("mixed")
+ */
+const DEFAULT_OFFICIAL_SUFFIXES = [
+  ".gov", ".int", ".edu", ".mil",
+  ".gov.uk", ".ac.uk", ".sch.uk", ".gov.au", ".edu.au", ".gc.ca", ".gouv.fr", ".go.jp", ".ac.jp",
+  ".go.kr", ".ac.kr", ".gov.br", ".gov.in", ".ac.in", ".edu.cn", ".gov.cn", ".ac.cn", ".gov.sg",
+  ".gov.za", ".ac.za", ".gov.my", ".edu.my", ".gob.mx", ".gov.mx", ".gob.es", ".gov.it", ".ac.nz",
 ];
+
+function csvSetting(name: string): string[] {
+  return (setting(name) ?? "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function officialSuffixes(): string[] {
+  return [...DEFAULT_OFFICIAL_SUFFIXES, ...csvSetting("OFFICIAL_DOMAIN_SUFFIXES")];
+}
 
 export function trustTierFor(url: string): "official" | "reputable" | "mixed" | "unrated" {
   try {
     const host = new URL(url).hostname.toLowerCase();
-    if (OFFICIAL_DOMAIN_HINTS.some((s) => host.endsWith(s))) return "official";
-    const reputable = [
-      "reuters.com", "apnews.com", "afp.com", "bbc.com", "bbc.co.uk", "theguardian.com",
-      "nature.com", "sciencedirect.org", "who.int", "snopes.com", "politifact.com",
-      "factcheck.org", "fullfact.org", "aap.com.au", "dpa-factchecking.com", "maldita.es",
-      "nytimes.com", "washingtonpost.com", "ft.com", "economist.com", "arstechnica.com",
-      "ieee.org", "acm.org", "nih.gov", "cdc.gov", "consumerreports.org",
-    ];
+    if (officialSuffixes().some((s) => host.endsWith(s))) return "official";
+    const reputable = csvSetting("REPUTABLE_DOMAINS");
     if (reputable.some((d) => host === d || host.endsWith(`.${d}`))) return "reputable";
-    const lowTrust = ["pinterest.", "facebook.com", "x.com", "twitter.com", "reddit.com",
-      "tiktok.com", "instagram.com", "youtube.com", "quora.com", "blogspot.com", "medium.com"];
-    if (lowTrust.some((d) => host.includes(d))) return "mixed";
+    const mixed = csvSetting("MIXED_TRUST_DOMAINS");
+    if (mixed.some((d) => host === d || host.endsWith(`.${d}`) || host.includes(d))) return "mixed";
     return "unrated";
   } catch {
     return "unrated";
@@ -66,163 +95,153 @@ function normalizeRating(rating?: string): "supports" | "contradicts" | "context
   return "context";
 }
 
+/* -------------------------------- fact-checks -------------------------------- */
+
+function mapFactChecks(spec: ConnectorSpec, data: unknown, query: string): FactCheckHit[] {
+  const map = spec.responseMap;
+  const claimsPath = map.claims ?? map.results ?? "";
+  const claims = claimsPath ? fieldArray(data, claimsPath) : Array.isArray(data) ? data : [];
+  const hits: FactCheckHit[] = [];
+
+  for (const claim of claims) {
+    const claimText = fieldString(claim, map.claimText ?? map.title) ?? query;
+    const claimant = fieldString(claim, map.claimant);
+    // A claim may carry several reviews; when the shape has none, the claim
+    // row itself is treated as the review.
+    const reviews = map.reviews ? fieldArray(claim, map.reviews) : [claim];
+    for (const review of reviews) {
+      hits.push({
+        claimText,
+        claimant,
+        rating: fieldString(review, map.rating),
+        reviewer: fieldString(review, map.reviewer ?? map.publisher),
+        reviewUrl: fieldString(review, map.reviewUrl ?? map.url),
+        reviewDate: fieldString(review, map.reviewDate ?? map.publishedAt),
+        languageCode: fieldString(review, map.language ?? map.languageCode),
+        connector: spec.id,
+      });
+    }
+  }
+  return hits;
+}
+
 export async function fetchFactChecks(
   query: string,
-  opts: { reportId?: string; pageSize?: number } = {},
+  opts: { reportId?: string; pageSize?: number; language?: string } = {},
 ): Promise<{ hits: FactCheckHit[]; call: ProviderCall }> {
-  const key = setting("GOOGLE_FACTCHECK_API_KEY");
-  if (!key) {
+  const configured = connectors("factcheck");
+  if (!configured.length) {
     return {
       hits: [],
       call: disabled(
-        "google-factcheck",
+        "factcheck",
         "claims:search",
-        "GOOGLE_FACTCHECK_API_KEY is not configured, so no published ClaimReviews were retrieved.",
+        "No fact-check connector is configured (FACTCHECK_CONNECTORS), so no published claim reviews were retrieved.",
       ),
     };
   }
-  try {
-    const { data, call } = await meter("google-factcheck", "claims:search", async () => {
-      const url = new URL("https://factchecktools.googleapis.com/v1alpha1/claims:search");
-      url.searchParams.set("key", key);
-      url.searchParams.set("query", query);
-      url.searchParams.set("pageSize", String(opts.pageSize ?? 10));
-      url.searchParams.set("languageCode", "en-US");
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(9000) });
-      if (!res.ok) throw new Error(`Fact Check Tools API responded ${res.status}`);
-      return (await res.json()) as { claims?: Array<Record<string, any>> };
-    }, { reportId: opts.reportId });
 
-    const hits: FactCheckHit[] = (data.claims ?? []).flatMap((claim) =>
-      (claim.claimReview ?? []).map((review: Record<string, any>) => ({
-        claimText: String(claim.text ?? query),
-        claimant: claim.claimant,
-        rating: review.textualRating,
-        reviewer: review.publisher?.name,
-        reviewUrl: review.url ?? review.title,
-        reviewDate: review.reviewDate,
-        languageCode: review.languageCode,
-      })),
-    );
-    return { hits, call };
-  } catch (error) {
-    return {
-      hits: [],
-      call: {
-        provider: "google-factcheck",
-        operation: "claims:search",
-        status: "error",
-        latencyMs: 0,
-        costUsd: 0,
-        error: (error as Error).message,
-      },
-    };
+  const errors: string[] = [];
+  for (const spec of configured) {
+    try {
+      const { data, call } = await meter(spec.id, "factcheck:search", async () => {
+        return runConnector(spec, {
+          query,
+          page_size: opts.pageSize ?? 10,
+          language: opts.language ?? "en",
+        });
+      }, { reportId: opts.reportId, costOverride: spec.costPerCallUsd });
+      const hits = mapFactChecks(spec, data, query);
+      if (hits.length) return { hits, call };
+      // An empty answer is a valid answer: keep the successful call, try the
+      // next connector only for a richer result set.
+      return { hits, call };
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
   }
+  return {
+    hits: [],
+    call: {
+      provider: configured[0].id,
+      operation: "factcheck:search",
+      status: "error",
+      latencyMs: 0,
+      costUsd: 0,
+      error: errors.join("; "),
+    },
+  };
+}
+
+/* ---------------------------------- search ---------------------------------- */
+
+function mapSearchResults(spec: ConnectorSpec, data: unknown): SearchResult[] {
+  const map = spec.responseMap;
+  const items = fieldArray(data, map.results ?? map.items ?? "results");
+  const out: SearchResult[] = [];
+  for (const item of items) {
+    const url = fieldString(item, map.url ?? map.link);
+    if (!url) continue;
+    let source = fieldString(item, map.source ?? map.publisher) ?? "";
+    if (!source) {
+      try {
+        source = new URL(url).hostname;
+      } catch {
+        source = url;
+      }
+    }
+    out.push({
+      title: fieldString(item, map.title) ?? url,
+      url,
+      snippet: truncate(fieldString(item, map.snippet ?? map.content ?? map.body) ?? "", 400),
+      source,
+      publishedAt: fieldString(item, map.publishedAt ?? map.date),
+    });
+  }
+  return out;
 }
 
 export async function searchWeb(
   query: string,
   opts: { reportId?: string; maxResults?: number } = {},
 ): Promise<{ results: SearchResult[]; answer?: string; call: ProviderCall }> {
-  const tavily = setting("TAVILY_API_KEY");
-  const serper = setting("SERPER_API_KEY");
-  const bing = setting("BING_SEARCH_KEY");
-
-  if (!tavily && !serper && !bing) {
+  const configured = connectors("search");
+  if (!configured.length) {
     return {
       results: [],
       call: skipped(
         "web-search",
         "query",
-        "No search provider key is configured. Corroborating sources were not retrieved for this check.",
+        "No search connector is configured (SEARCH_CONNECTORS). Corroborating sources were not retrieved for this check.",
       ),
     };
   }
 
-  const operation = tavily ? "tavily:search" : serper ? "serper:search" : "bing:search";
-  try {
-    const { data, call } = await meter("web-search", operation, async () => {
-      if (tavily) {
-        const res = await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          signal: AbortSignal.timeout(10000),
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            api_key: tavily,
-            query,
-            max_results: opts.maxResults ?? 8,
-            search_depth: "advanced",
-            include_answer: true,
-          }),
-        });
-        if (!res.ok) throw new Error(`Tavily responded ${res.status}`);
-        const json = (await res.json()) as any;
-        return {
-          answer: json.answer as string | undefined,
-          results: (json.results ?? []).map((r: any) => ({
-            title: r.title ?? r.url,
-            url: r.url,
-            snippet: truncate(String(r.content ?? ""), 400),
-            source: new URL(r.url).hostname,
-            publishedAt: r.published_date,
-          })) as SearchResult[],
-        };
-      }
-      if (serper) {
-        const res = await fetch("https://google.serper.dev/search", {
-          method: "POST",
-          signal: AbortSignal.timeout(10000),
-          headers: { "content-type": "application/json", "x-api-key": serper },
-          body: JSON.stringify({ q: query, num: opts.maxResults ?? 8, gl: "us", hl: "en" }),
-        });
-        if (!res.ok) throw new Error(`Serper responded ${res.status}`);
-        const json = (await res.json()) as any;
-        return {
-          answer: json.answerBox?.answer as string | undefined,
-          results: (json.organic ?? []).map((r: any) => ({
-            title: r.title ?? r.link,
-            url: r.link,
-            snippet: truncate(String(r.snippet ?? ""), 400),
-            source: r.source ?? new URL(r.link).hostname,
-            publishedAt: r.date,
-          })) as SearchResult[],
-        };
-      }
-      const url = new URL("https://api.bing.microsoft.com/v7.0/search");
-      url.searchParams.set("q", query);
-      url.searchParams.set("count", String(opts.maxResults ?? 8));
-      url.searchParams.set("textFormat", "Raw");
-      const res = await fetch(url.toString(), {
-        signal: AbortSignal.timeout(10000),
-        headers: { "Ocp-Apim-Subscription-Key": bing! },
-      });
-      if (!res.ok) throw new Error(`Bing responded ${res.status}`);
-      const json = (await res.json()) as any;
-      return {
-        results: (json.webPages?.value ?? []).map((r: any) => ({
-          title: r.name,
-          url: r.url,
-          snippet: truncate(String(r.snippet ?? ""), 400),
-          source: new URL(r.url).hostname,
-          publishedAt: r.dateLastCrawled,
-        })) as SearchResult[],
-      };
-    }, { reportId: opts.reportId });
-
-    return { results: data.results, answer: data.answer, call };
-  } catch (error) {
-    return {
-      results: [],
-      call: {
-        provider: "web-search",
-        operation,
-        status: "error",
-        latencyMs: 0,
-        costUsd: 0,
-        error: (error as Error).message,
-      },
-    };
+  const errors: string[] = [];
+  for (const spec of configured) {
+    try {
+      const { data, call } = await meter(spec.id, "search:query", async () => {
+        return runConnector(spec, { query, max_results: opts.maxResults ?? 8 });
+      }, { reportId: opts.reportId, costOverride: spec.costPerCallUsd });
+      const results = mapSearchResults(spec, data);
+      const answer = fieldString(data, spec.responseMap.answer);
+      if (results.length || answer) return { results, answer, call };
+      errors.push(`${spec.label} returned no results`);
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
   }
+  return {
+    results: [],
+    call: {
+      provider: configured[0].id,
+      operation: "search:query",
+      status: "error",
+      latencyMs: 0,
+      costUsd: 0,
+      error: errors.join("; "),
+    },
+  };
 }
 
 export function searchResultsToEvidence(results: SearchResult[]): EvidenceSource[] {
@@ -241,7 +260,7 @@ export function searchResultsToEvidence(results: SearchResult[]): EvidenceSource
 
 export function factChecksToEvidence(hits: FactCheckHit[]): EvidenceSource[] {
   return hits.map((h) => ({
-    provider: "google-factcheck",
+    provider: h.connector,
     url: h.reviewUrl,
     title: truncate(h.claimText, 180),
     publisher: h.reviewer,

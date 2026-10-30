@@ -17,7 +17,8 @@ import {
   SectionLabel,
   TonalChip,
 } from "@/components/ui";
-import { TOOL_PAGES } from "@/content/tools";
+import { toolPages } from "@/content/tools";
+import { identity } from "@/lib/identity";
 import NotFoundPage from "@/pages/NotFound";
 
 const CATEGORY_ICON_MAP = {
@@ -53,8 +54,9 @@ function useCatalog(slug: string): CatalogRow[] {
 }
 
 export default function ModulePage() {
+  const id = identity();
   const { slug = "" } = useParams();
-  const page = TOOL_PAGES[slug];
+  const page = toolPages()[slug];
   const catalog = useCatalog(slug);
   if (!page) return <NotFoundPage />;
 
@@ -329,7 +331,7 @@ export default function ModulePage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                {Object.values(TOOL_PAGES).map((other) => (
+                {Object.values(toolPages()).map((other) => (
                   <Link
                     key={other.slug}
                     href={`/tools/${other.slug}`}
@@ -348,7 +350,7 @@ export default function ModulePage() {
           <div className="mt-12 flex items-center gap-4 border-t border-mist-500/12 pt-8">
             <IconSeal className="h-6 w-6 text-mist-600" />
             <p className="max-w-3xl text-xs leading-relaxed text-mist-600">
-              SG16 Identifier reports evidence, not legal conclusions, and is not affiliated with or
+              {id.appName} reports evidence, not legal conclusions, and is not affiliated with or
               endorsed by any manufacturer, retailer, platform or fact-checking organisation named in
               its reports. Flag any result you believe is wrong from the report page.
             </p>

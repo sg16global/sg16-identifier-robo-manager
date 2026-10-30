@@ -5,23 +5,23 @@ import { passThroughHeaders, relay } from "@/lib/universal/upstreams";
 const TIMEOUT_MS = 60_000;
 
 /**
- * ANY /v1/forward — calls any company's HTTP API for an API key holder, with
- * no configuration. Name the target with the x-vitex-target header or the
+ * ANY /v1/forward — calls any HTTP API anywhere for an API key holder, with
+ * no configuration. Name the target with the x-gateway-target header or the
  * `url` query parameter (an absolute URL, its own query included).
  *
  * Method, body and headers pass through, including the caller's credentials
  * for the target (Authorization, x-api-key, …) — except the header that
- * carried the gateway key. Send the gateway key in x-vitex-key to keep
- * Authorization for the target. Cookies, client IP headers and x-vitex-*
+ * carried the gateway key. Send the gateway key in x-gateway-key to keep
+ * Authorization for the target. Cookies, client IP headers and x-gateway-*
  * headers are never forwarded; upstream cookies are not returned.
  */
 async function handle(request: Request) {
   const admission = await admit(request);
   if (admission instanceof Response) return admission;
 
-  const raw = request.headers.get("x-vitex-target") ?? new URL(request.url).searchParams.get("url");
+  const raw = request.headers.get("x-gateway-target") ?? new URL(request.url).searchParams.get("url");
   if (!raw) {
-    return errorResponse(request, 400, "Name the target with the x-vitex-target header or the ?url= parameter.", "invalid_request_error");
+    return errorResponse(request, 400, "Name the target with the x-gateway-target header or the ?url= parameter.", "invalid_request_error");
   }
   const target = await checkCallerUrl(raw);
   if (!target.ok) return errorResponse(request, target.status, `Target refused: ${target.reason}.`, "target_refused");
@@ -34,7 +34,7 @@ async function handle(request: Request) {
     headers,
     timeoutMs: TIMEOUT_MS,
     costUsd: 0,
-    tag: ["x-vitex-target", target.url.origin],
+    tag: ["x-gateway-target", target.url.origin],
   });
   for (const [name, value] of Object.entries(corsHeaders(request))) res.headers.set(name, value);
   return res;

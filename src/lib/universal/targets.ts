@@ -2,14 +2,15 @@ import { setting } from "@/lib/settings";
 import { assertPublicResolution, hostnameLooksInternal } from "@/lib/security/url-guard";
 
 /**
- * URLs supplied by an API caller (x-vitex-base-url, /v1/forward): any public
- * http(s) server of any company is allowed. Private, loopback and internal
- * addresses are refused unless the operator sets VITEX_ALLOW_PRIVATE_TARGETS —
- * otherwise any key holder could reach this deployment's own network.
+ * URLs supplied by an API caller (x-gateway-base-url, /v1/forward): any
+ * public http(s) server anywhere in the world is allowed. Private, loopback
+ * and internal addresses are refused unless the operator sets
+ * GATEWAY_ALLOW_PRIVATE_TARGETS — otherwise any key holder could reach this
+ * deployment's own network.
  */
 
 export function privateTargetsAllowed(): boolean {
-  return ["1", "true", "yes", "on"].includes((setting("VITEX_ALLOW_PRIVATE_TARGETS") ?? "").trim().toLowerCase());
+  return ["1", "true", "yes", "on"].includes((setting("GATEWAY_ALLOW_PRIVATE_TARGETS") ?? "").trim().toLowerCase());
 }
 
 export type CallerUrlCheck = { ok: true; url: URL } | { ok: false; reason: string; status: 400 | 403 };

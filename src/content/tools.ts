@@ -1,6 +1,9 @@
 import type { VerificationCategory } from "@/lib/types";
 
-/** Verification modules rendered at /tools/:slug. Shared by the page and the Worker (titles for search and link previews). */
+/** Verification modules rendered at /tools/:slug. Shared by the page and the Worker (titles for search and link previews).
+ *  Built lazily so product names and examples come from the deployment identity;
+ *  every external source named here is an operator-configured connector slot. */
+import { identity } from "@/lib/identity";
 
 export interface ModulePage {
   slug: string;
@@ -17,7 +20,9 @@ export interface ModulePage {
   related: Array<{ href: string; label: string }>;
 }
 
-export const TOOL_PAGES: Record<string, ModulePage> = {
+export function toolPages(): Record<string, ModulePage> {
+  const { appName } = identity();
+  return {
   news: {
     slug: "news",
     category: "claim",
@@ -28,7 +33,7 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       "A claim repeated across a hundred websites is usually one source syndicated a hundred times. This module decomposes what you paste into atomic, checkable claims, retrieves published fact-checks and independent reporting, rates every source it finds, and tells you plainly when it cannot reach a conclusion.",
     checks: [
       { title: "Atomic claim decomposition", body: "Splits a post or article into individual checkable propositions, separating factual assertions from opinion, prediction and quoted speech. A verdict on the whole is meaningless when only one sentence is false." },
-      { title: "Published ClaimReview retrieval", body: "Queries the Google Fact Check Tools API for existing reviews by fact-checking organisations, capturing the reviewer, the textual rating and the review date." },
+      { title: "Published ClaimReview retrieval", body: "Queries configured fact-check connectors for existing reviews by fact-checking organisations, capturing the reviewer, the textual rating and the review date." },
       { title: "Source trust rating", body: "Every retrieved source is classified as official (government, intergovernmental, academic), reputable publisher, mixed/user-generated, or unrated. Repetition across unrated sources is not treated as corroboration." },
       { title: "Framing and language analysis", body: "Detects absolute quantifiers, unnamed authority ('studies show'), suppression narratives, causal overreach, numeric claims without denominators and emotive amplification." },
       { title: "Date and context extraction", body: "Pulls explicit dates, quotations and numbers from the submission so they can be compared against publication dates in the retrieved corpus." },
@@ -41,9 +46,9 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       "Establish the origin of an image attached to the article — that is the Image & Video Identifier's job.",
     ],
     sources: [
-      { name: "Google Fact Check Tools API", role: "Existing ClaimReviews from fact-checking organisations", status: "key-dependent" },
+      { name: "Fact-check connectors", role: "Existing ClaimReviews from fact-checking organisations", status: "config-dependent" },
       { name: "Licensed web search", role: "Primary sources, official statements, corroborating reporting", status: "key-dependent" },
-      { name: "SG16 framing lexicon", role: "Absolute quantifiers, unnamed authority, suppression narratives", status: "always on" },
+      { name: "Framing lexicon", role: "Absolute quantifiers, unnamed authority, suppression narratives", status: "always on" },
       { name: "AI analyst (optional)", role: "Claim typing, evidence comparison, plain-language summary", status: "key-dependent" },
       { name: "Trust-tier classifier", role: "Official / reputable / mixed / unrated labelling of every source", status: "always on" },
     ],
@@ -62,7 +67,7 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
     related: [
       { href: "/tools/media", label: "Check the image attached to the claim" },
       { href: "/tools/websites", label: "Check the site publishing it" },
-      { href: "/legal/limitations", label: "What SG16 cannot prove" },
+      { href: "/legal/limitations", label: `What ${appName} cannot prove` },
     ],
   },
   websites: {
@@ -77,7 +82,7 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       { title: "SSRF-safe target screening", body: "Only http and https are permitted. Credentials in URLs, bare IPs, loopback, RFC1918, CGNAT, link-local and cloud-metadata ranges are rejected before any connection is attempted." },
       { title: "DNS and email posture", body: "Resolves A/AAAA, reads SOA and NS, checks MX, and reports whether SPF and DMARC are published. A domain with no email authentication is trivially impersonable." },
       { title: "TLS certificate inspection", body: "Reads the certificate actually presented: issuer, subject, validity window, certificate age in days and how many hostnames it covers. Hundreds of SANs usually means shared, low-quality hosting." },
-      { title: "Commercial URL reputation", body: "Queries Google Web Risk for MALWARE, SOCIAL_ENGINEERING and UNWANTED_SOFTWARE classifications when a key is configured — and says so when it is not." },
+      { title: "Commercial URL reputation", body: "Queries configured reputation connectors for malicious-URL classifications when one is present — and says so when it is not." },
       { title: "Sandboxed page fetch", body: "Follows redirects manually, re-validating every hop, then inspects the landing page for credential forms, irreversible-payment vocabulary, HSTS and server disclosure." },
       { title: "Impersonation and deception detection", body: "Homoglyph folding, punycode detection, trust-word subdomains, hyphen and digit stuffing, and the classic pattern of a brand name used as a subdomain of somebody else's registrable domain." },
       { title: "Message-language lexicon", body: "Eighteen independent scam signals: manufactured urgency, account threats, gift cards and wire transfers, one-time codes, remote-access tools, customs fees, guaranteed returns and counterfeit-grade marketing terms." },
@@ -91,18 +96,18 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
     sources: [
       { name: "Public DNS resolvers", role: "A/AAAA, SOA, NS, MX, TXT, SPF, DMARC, CNAME", status: "always on" },
       { name: "TLS handshake", role: "Certificate issuer, validity, age and SAN count", status: "always on" },
-      { name: "Google Web Risk / Safe Browsing", role: "Commercial malicious-URL classification", status: "key-dependent" },
+      { name: "Reputation connectors", role: "Commercial malicious-URL classification", status: "config-dependent" },
       { name: "SSRF-guarded HTTP probe", role: "Status, redirect chain, headers, forms, payment vocabulary", status: "switch-controlled" },
-      { name: "SG16 deception lexicons", role: "URL structure, impersonation and message-language signals", status: "always on" },
+      { name: "Deception lexicons", role: "URL structure, impersonation and message-language signals", status: "always on" },
     ],
     examples: [
-      { label: "Clearance scam shop", value: "https://dyson-outlet-clearance.top/shop/v15-detect-70-off — only 3 left, ends in 2 hours, 100% original guaranteed" },
-      { label: "Parcel fee message", value: "DHL: your parcel is held at customs. Pay the $2.99 clearance fee within 24 hours or it will be returned: http://dhl-customs-fee.cc/pay" },
+      { label: "Clearance scam shop", value: "https://factory-outlet-clearance.top/shop/stick-vacuum-70-off — only 3 left, ends in 2 hours, 100% original guaranteed" },
+      { label: "Parcel fee message", value: "Parcel courier: your parcel is held at customs. Pay the $2.99 clearance fee within 24 hours or it will be returned: http://parcel-customs-fee.cc/pay" },
       { label: "Brand subdomain trick", value: "Confirm your account now at https://paypal.secure-verify-login.xyz/authenticate — your account will be suspended otherwise" },
       { label: "Bare IP phishing", value: "Dear customer, unusual sign-in detected. Log in here http://185.220.101.44/verify/index.php to avoid closure" },
     ],
     faq: [
-      { q: "Will SG16 visit the link I submit?", a: "Only through the SSRF guard, and only if the outbound-fetch switch is enabled. Private and internal address ranges are rejected, redirects are re-validated hop by hop, the response is size-capped, and the retrieved HTML is treated as untrusted data rather than instructions." },
+      { q: `Will ${appName} visit the link I submit?`, a: "Only through the SSRF guard, and only if the outbound-fetch switch is enabled. Private and internal address ranges are rejected, redirects are re-validated hop by hop, the response is size-capped, and the retrieved HTML is treated as untrusted data rather than instructions." },
       { q: "What makes a domain 'suspicious' versus 'high risk'?", a: "Suspicious means several warning signs accumulated without a definitive failure. High risk means a hard signal was found — a threat-list classification, a rejected target, or a redirect chain that lands on a different registered domain than the one you were sent." },
       { q: "The site works fine for me. Why the warnings?", a: "Scam infrastructure is often geo-fenced, cloaked against bots, or already taken down in one region while still serving in another. Infrastructure evidence — a two-day-old certificate, no DMARC, forty SANs — does not depend on what your browser happens to see." },
       { q: "Can I check an email without the link?", a: "Yes. Paste the whole message. The language lexicon runs on text alone, and the report will tell you which evidence is missing because no URL was supplied." },
@@ -132,28 +137,28 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
     ],
     cannot: [
       "Prove a physical item is genuine. A matching model code confirms the code is attributable to a documented product; counterfeiters copy real codes.",
-      "Query a manufacturer serial-number API. Most manufacturers do not expose one publicly, and SG16 does not claim to have checked a registry it has not licensed.",
+      "Query a manufacturer serial-number API. Most manufacturers do not expose one publicly, and this service does not claim to have checked a registry it has not licensed.",
       "Map an IMEI TAC to a model without a licensed GSMA type-allocation database — this is reported as unknown rather than guessed.",
       "Guarantee counterfeit detection. Any service that advertises that without manufacturer support is overstating what a lookup can do.",
     ],
     sources: [
-      { name: "SG16 identifier mathematics", role: "Luhn, GS1 modulo-10, normalisation, edit distance", status: "always on" },
+      { name: "Identifier mathematics", role: "Luhn, GS1 modulo-10, normalisation, edit distance", status: "always on" },
       { name: "Internal product catalogue", role: "Normalised model records, specifications, counterfeit signals", status: "always on" },
       { name: "Category price floors", role: "Plausibility screening of quoted prices", status: "always on" },
       { name: "Manufacturer specification pages", role: "Linked in every matched report for direct comparison", status: "linked" },
       { name: "AI analyst (optional)", role: "Comparing messy listing text against a structured record", status: "key-dependent" },
     ],
     examples: [
-      { label: "IMEI that fails Luhn", value: "IMEI 356938035643800 — iPhone 15 Pro Max, brand new sealed, 256GB, $520, ships worldwide" },
-      { label: "Spec contradiction", value: "Galaxy A55 5G SM-A556B, 6.1 inch display, 3000mAh battery, 45W charging, $180 new in box" },
-      { label: "Charger with a copied barcode", value: "Anker A2147 Nano 3 30W, bulk lot of 200 units, EAN 4006381333931, $6.50 each, 100% original guaranteed" },
+      { label: "IMEI that fails Luhn", value: "IMEI 356938035643800 — flagship phone, brand new sealed, 256GB, $520, ships worldwide" },
+      { label: "Spec contradiction", value: "Budget 5G phone model AB-A55X, 6.1 inch display, 3000mAh battery, 45W charging, $180 new in box" },
+      { label: "Charger with a copied barcode", value: "30W fast charger, bulk lot of 200 units, EAN 4006381333931, $6.50 each, 100% original guaranteed" },
       { label: "Footwear SKU format", value: "Air Jordan 1 Retro High OG, size label SKU 555088-134, box label SKU 555088-101, $95 shipped" },
     ],
     faq: [
       { q: "The IMEI passed. Does that mean the phone is real?", a: "No. It means the fifteen digits satisfy the Luhn algorithm, which any generated number can be made to do. A cloned IMEI from a genuine handset passes perfectly. Use the manufacturer's own coverage checker and the physical checks in the report." },
       { q: "Why did the barcode check fail?", a: "The GS1 modulo-10 check digit did not compute. Genuine retail packaging does not carry invalid check digits, so the code was mistyped, invented, or produced by a tool that ignored the algorithm. That is a hard signal, and the report says so." },
-      { q: "Is your catalogue authoritative?", a: "No, and every report says so. It is an SG16-normalised starter dataset of popular electronics with specification ranges and known counterfeit signals. A non-match means the record is absent, not that the product does not exist. Licensed manufacturer and GS1 feeds are a later phase." },
-      { q: "Can you check a listing URL too?", a: "Yes. If your submission contains both a product identifier and a URL, SG16 runs the product workflow first and then merges a full seller and domain sweep into one report — specification checks and infrastructure checks together." },
+      { q: "Is your catalogue authoritative?", a: "No, and every report says so. It is an operator-supplied, normalised catalogue with specification ranges and known counterfeit signals. A non-match means the record is absent, not that the product does not exist. Licensed manufacturer and GS1 feeds are a later phase." },
+      { q: "Can you check a listing URL too?", a: "Yes. If your submission contains both a product identifier and a URL, the engine runs the product workflow first and then merges a full seller and domain sweep into one report — specification checks and infrastructure checks together." },
     ],
     related: [
       { href: "/tools/websites", label: "Check the seller's domain" },
@@ -173,10 +178,10 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       { title: "Container parsing from raw bytes", body: "Walks the JPEG segment chain, the PNG chunk list and the WebP RIFF structure directly. No third-party decoder, no upload to anybody else's server." },
       { title: "EXIF capture evidence", body: "Recovers Make, Model, Lens, Software, DateTimeOriginal, DateTime, GPS presence, orientation, resolution and embedded thumbnails — and notes when a file was re-saved after capture." },
       { title: "C2PA / Content Credentials detection", body: "Finds the JPEG APP11 JUMBF carrier, the PNG caBX chunk and the WebP 'JP' chunk that hold a signed provenance manifest, and reports the labels present." },
-      { title: "Generative-tool signature scan", body: "Searches XMP packets, PNG tEXt/iTXt chunks and container strings for Stable Diffusion, AUTOMATIC1111, ComfyUI, Midjourney, OpenAI, Firefly, FLUX, NovelAI, Runway and the IPTC generative digitalSourceType values." },
+      { title: "Generative-source scan", body: "Searches XMP packets, PNG tEXt/iTXt chunks and container strings for vendor-neutral evidence: standards assertions (IPTC digitalSourceType, C2PA generative assertions), embedded generation-parameter blobs and the software the file itself declares. Brand-shaped patterns are operator configuration (MEDIA_SIGNATURES), so any deployment can add its own — including sovereign or in-house generators — without a code change." },
       { title: "JPEG structural profile", body: "Reports the marker path, quantisation table count, baseline versus progressive scan and restart markers — the fingerprints of how many encode passes a file has been through." },
       { title: "Shannon entropy profiling", body: "Computes bits-per-byte across the whole file. Values are reported with an honest interpretation: entropy alone does not discriminate real from synthetic." },
-      { title: "Out-of-context detection", body: "When you supply the caption, date and place the media is being shared with, SG16 searches for earlier appearances and compares claimed dates with the earliest publication date it can find." },
+      { title: "Out-of-context detection", body: "When you supply the caption, date and place the media is being shared with, the engine searches for earlier appearances and compares claimed dates with the earliest publication date it can find." },
     ],
     cannot: [
       "Perform pixel-level manipulation detection in this release. Metadata and provenance analysis cannot prove an image was, or was not, altered.",
@@ -198,8 +203,8 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       { label: "Product photo check", value: "The seller sent these pictures of the handset. Are they stock images or real photos of the item?" },
     ],
     faq: [
-      { q: "Why won't you just tell me if it's AI-generated?", a: "Because the honest answer requires evidence. SG16 reports what the file contains — a generator signature, a provenance manifest, a camera record, or nothing at all. A classifier score presented as proof produces false accusations against real photographers and false reassurance about synthetic ones." },
-      { q: "The file has no metadata at all. Is that suspicious?", a: "No. Screenshots have none. Everything uploaded to WhatsApp, X, Instagram, Facebook or Telegram has had it stripped. A downloaded press image usually has none. Absence of EXIF is normal, and SG16 says so explicitly rather than treating it as a signal." },
+      { q: "Why won't you just tell me if it's AI-generated?", a: "Because the honest answer requires evidence. The engine reports what the file contains — a generator signature, a provenance manifest, a camera record, or nothing at all. A classifier score presented as proof produces false accusations against real photographers and false reassurance about synthetic ones." },
+      { q: "The file has no metadata at all. Is that suspicious?", a: "No. Screenshots have none. Everything uploaded to social platforms or messaging apps has had it stripped. A downloaded press image usually has none. Absence of EXIF is normal, and the engine says so explicitly rather than treating it as a signal." },
       { q: "Where does my uploaded image go?", a: "It is parsed in memory on the server, hashed with SHA-256 for deduplication, and the extracted metadata is written into the report. The pixels are not stored, not published, not sold and not used to train any model." },
       { q: "What should I attach?", a: "The original file, not a screenshot of it. Each re-save destroys metadata, and a screenshot of a social post contains only the platform's own recompression — which tells you nothing about the source image." },
     ],
@@ -209,4 +214,5 @@ export const TOOL_PAGES: Record<string, ModulePage> = {
       { href: "/legal/limitations", label: "Verification limits in full" },
     ],
   },
-};
+  };
+}

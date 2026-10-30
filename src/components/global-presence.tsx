@@ -1,10 +1,15 @@
 import type { ReactNode } from "react";
+import { identity, type PresenceItem } from "@/lib/identity";
 import { Reveal } from "@/components/ui";
 
 /**
- * "Global Presence" strip between the hero and the AI Pioneers, matching the
- * one on mistralbrain.com. Flags are inline SVG (flag emoji do not render on
- * Windows), so nothing is fetched and every flag stays crisp at any size.
+ * Optional "Global Presence" strip between the hero and the showcase rail.
+ * The entries are pure configuration: PRESENCE_ITEMS on the deployment identity
+ * (see src/lib/identity.ts), each { name, flag?, image? } where `flag` is a
+ * two-letter country code with a built-in inline-SVG renderer and `image` is a
+ * URL for any other flag or emblem. With nothing configured the section is not
+ * rendered. Built-in flags are inline SVG (flag emoji do not render on Windows),
+ * so they stay crisp at any size without fetching anything.
  */
 
 /** Five-pointed star centred on (cx, cy), pointing up, rotated by `rotate` degrees. */
@@ -91,16 +96,31 @@ function FlagChina() {
   );
 }
 
-const NATIONS: Array<{ name: string; flag: ReactNode }> = [
-  { name: "USA", flag: <FlagUSA /> },
-  { name: "UK", flag: <FlagUK /> },
-  { name: "France", flag: <FlagTricolour vertical colours={["#0055A4", "#FFFFFF", "#EF4135"]} /> },
-  { name: "Russia", flag: <FlagTricolour vertical={false} colours={["#FFFFFF", "#0039A6", "#D52B1E"]} /> },
-  { name: "China", flag: <FlagChina /> },
-  { name: "Germany", flag: <FlagTricolour vertical={false} colours={["#000000", "#DD0000", "#FFCE00"]} /> },
-];
+/** Built-in flag renderers, keyed by two-letter country code. Anything else uses `image`. */
+const BUILT_IN_FLAGS: Record<string, () => ReactNode> = {
+  US: FlagUSA,
+  GB: FlagUK,
+  UK: FlagUK,
+  FR: () => <FlagTricolour vertical colours={["#0055A4", "#FFFFFF", "#EF4135"]} />,
+  RU: () => <FlagTricolour vertical={false} colours={["#FFFFFF", "#0039A6", "#D52B1E"]} />,
+  CN: FlagChina,
+  DE: () => <FlagTricolour vertical={false} colours={["#000000", "#DD0000", "#FFCE00"]} />,
+};
+
+function FlagFor({ item }: { item: PresenceItem }) {
+  const builtIn = item.flag ? BUILT_IN_FLAGS[item.flag.trim().toUpperCase()] : undefined;
+  if (builtIn) return <>{builtIn()}</>;
+  if (item.image) {
+    return <img src={item.image} alt="" loading="lazy" decoding="async" draggable={false} className="block h-full w-full object-cover" />;
+  }
+  // Neither a known code nor an image: a neutral tile, so the row stays even.
+  return <span aria-hidden className="block h-full w-full bg-ink-700" />;
+}
 
 export function GlobalPresence() {
+  const items = identity().presenceItems;
+  if (items.length === 0) return null;
+
   return (
     <section aria-labelledby="global-presence-title" className="relative mx-auto mt-14 max-w-[1040px] px-5 sm:px-8">
       <Reveal>
@@ -119,16 +139,16 @@ export function GlobalPresence() {
           </header>
 
           <ul className="relative mt-6 grid grid-cols-3 gap-x-4 gap-y-5 sm:grid-cols-6">
-            {NATIONS.map((n) => (
-              <li key={n.name} className="group flex flex-col items-center gap-2">
+            {items.map((item) => (
+              <li key={item.name} className="group flex flex-col items-center gap-2">
                 <span
                   aria-hidden
                   className="block h-[40px] w-[60px] overflow-hidden rounded-[3px] border border-ink-500 shadow-[0_2px_10px_rgb(0_0_0/0.6)] transition-[transform,border-color,box-shadow] duration-300 group-hover:-translate-y-0.5 group-hover:border-brand-500 group-hover:shadow-[0_0_18px_-4px_var(--glow-red-strong)] sm:h-[44px] sm:w-[66px] [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
                 >
-                  {n.flag}
+                  <FlagFor item={item} />
                 </span>
                 <span className="font-display text-[12.5px] font-semibold uppercase tracking-[0.08em] text-paper-50">
-                  {n.name}
+                  {item.name}
                 </span>
               </li>
             ))}

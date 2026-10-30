@@ -1,7 +1,7 @@
 import { constantTimeEqual } from "@/lib/security/compare";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { auditEvents, feedback, providerUsage } from "@/db/schema";
+import { auditEvents, feedback, productCatalog, providerUsage } from "@/db/schema";
 import {
   FLAG_KEYS,
   adminStats,
@@ -14,7 +14,7 @@ import {
 import { ensureCatalogSeeded } from "@/lib/verification/modules/product";
 import { budgetState, DAILY_BUDGET_USD } from "@/lib/security/rate-limit";
 import { newId } from "@/lib/utils";
-import { setting } from "@/lib/settings";
+import { numSetting, setting } from "@/lib/settings";
 
 // No fallback: without ADMIN_ACCESS_CODE the console is closed to everyone. A
 // default code would be public (it is printed in .env.example).
@@ -22,7 +22,7 @@ const ADMIN_CODE = setting("ADMIN_ACCESS_CODE") ?? "";
 
 function authorized(request: Request): boolean {
   // Header only: a code in the URL would be written to server and CDN logs.
-  const supplied = request.headers.get("x-sg16-admin") ?? "";
+  const supplied = request.headers.get("x-admin-code") ?? "";
   if (!ADMIN_CODE || !supplied) return false;
   return constantTimeEqual(supplied, ADMIN_CODE);
 }
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     recentUsage,
     spend: spend[0],
     budget: { dailyUsd: DAILY_BUDGET_USD, ...(await budgetState()) },
-    retentionDays: Number(setting("SG16_RETENTION_DAYS") ?? "30"),
+    retentionDays: numSetting("RETENTION_DAYS", 30),
     flags: Object.values(FLAG_KEYS),
   }, { headers: { "cache-control": "no-store" } });
 }
@@ -85,6 +85,76 @@ export async function POST(request: Request) {
 
   if (action === "seed-catalog") {
     const inserted = await ensureCatalogSeeded();
+    return Response.json({ ok: true, inserted });
+  }
+
+  if (action === "catalog-upsert") {
+    const entry = (body.entry ?? {}) as Record<string, unknown>;
+    const brand = String(entry.brand ?? "").trim().slice(0, 96);
+    const model = String(entry.model ?? "").trim().slice(0, 160);
+    if (!brand || !model) {
+      return Response.json({ ok: false, error: "entry.brand and entry.model are required." }, { status: 400 });
+    }
+    const values = {
+      brand,
+      model,
+      family: entry.family ? String(entry.family).slice(0, 120) : null,
+      category: String(entry.category ?? "Uncategorised").slice(0, 64),
+      identifiers: (entry.identifiers && typeof entry.identifiers === "object" ? entry.identifiers : { models: [] }) as object,
+      specs: (entry.specs && typeof entry.specs === "object" ? entry.specs : {}) as object,
+      knownCounterfeitSignals: Array.isArray(entry.knownCounterfeitSignals) ? (entry.knownCounterfeitSignals as unknown[]) : [],
+      officialUrl: entry.officialUrl ? String(entry.officialUrl) : null,
+      source: "admin",
+      lastReviewedAt: new Date(),
+    };
+    await db
+      .insert(productCatalog)
+      .values({ id: newId(), ...values })
+      .onConflictDoUpdate({ target: [productCatalog.brand, productCatalog.model], set: values });
+    await db.insert(auditEvents).values({ id: newId(), actor: "admin", action: "catalog-upsert", meta: { brand, model } });
+    return Response.json({ ok: true, brand, model });
+  }
+
+  if (action === "catalog-delete") {
+    const brand = String(body.brand ?? "").trim();
+    const model = String(body.model ?? "").trim();
+    if (!brand || !model) {
+      return Response.json({ ok: false, error: "brand and model are required." }, { status: 400 });
+    }
+    await db
+      .delete(productCatalog)
+      .where(sql`lower(${productCatalog.brand}) = ${brand.toLowerCase()} and lower(${productCatalog.model}) = ${model.toLowerCase()}`);
+    await db.insert(auditEvents).values({ id: newId(), actor: "admin", action: "catalog-delete", meta: { brand, model } });
+    return Response.json({ ok: true, brand, model });
+  }
+
+  if (action === "catalog-import") {
+    // Bulk import: the same JSON shape as PRODUCT_CATALOG.
+    const entries = Array.isArray(body.entries) ? (body.entries as Record<string, unknown>[]) : [];
+    let inserted = 0;
+    for (const entry of entries.slice(0, 500)) {
+      const brand = String(entry.brand ?? "").trim().slice(0, 96);
+      const model = String(entry.model ?? "").trim().slice(0, 160);
+      if (!brand || !model) continue;
+      const values = {
+        brand,
+        model,
+        family: entry.family ? String(entry.family).slice(0, 120) : null,
+        category: String(entry.category ?? "Uncategorised").slice(0, 64),
+        identifiers: (entry.identifiers && typeof entry.identifiers === "object" ? entry.identifiers : { models: [] }) as object,
+        specs: (entry.specs && typeof entry.specs === "object" ? entry.specs : {}) as object,
+        knownCounterfeitSignals: Array.isArray(entry.knownCounterfeitSignals) ? (entry.knownCounterfeitSignals as unknown[]) : [],
+        officialUrl: entry.officialUrl ? String(entry.officialUrl) : null,
+        source: "admin",
+        lastReviewedAt: new Date(),
+      };
+      await db
+        .insert(productCatalog)
+        .values({ id: newId(), ...values })
+        .onConflictDoUpdate({ target: [productCatalog.brand, productCatalog.model], set: values });
+      inserted += 1;
+    }
+    await db.insert(auditEvents).values({ id: newId(), actor: "admin", action: "catalog-import", meta: { inserted } });
     return Response.json({ ok: true, inserted });
   }
 

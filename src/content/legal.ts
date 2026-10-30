@@ -1,4 +1,7 @@
-/** Legal documents rendered at /legal/:doc. Shared by the page and the Worker (titles for search and link previews). */
+/** Legal documents rendered at /legal/:doc. Shared by the page and the Worker (titles for search and link previews).
+ *  Built lazily so every product name and report-reference example comes from the
+ *  deployment identity — no operator is named in this file. */
+import { identity } from "@/lib/identity";
 
 export interface LegalDoc {
   slug: string;
@@ -9,14 +12,16 @@ export interface LegalDoc {
   blocks: Array<{ heading: string; body: string[]; list?: string[] }>;
 }
 
-export const LEGAL_DOCS: Record<string, LegalDoc> = {
+export function legalDocs(): Record<string, LegalDoc> {
+  const { appName, reportIdPrefix } = identity();
+  return {
   privacy: {
     slug: "privacy",
     eyebrow: "Policy",
     title: "Privacy, retention and deletion",
     updated: "October 2026",
     lede:
-      "SG16 Identifier accepts text, links and images from strangers. This policy states the minimum we keep, how long we keep it, and how to make it go away.",
+      `${appName} accepts text, links and images from strangers. This policy states the minimum we keep, how long we keep it, and how to make it go away.`,
     blocks: [
       {
         heading: "What we receive",
@@ -45,7 +50,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
         heading: "What we never do",
         body: ["We do not sell submissions, we do not publish private reports, and we do not use your input to train a model."],
         list: [
-          "A report is addressed by an unguessable reference such as SG16-4KQ2-9MXT and is never indexed by search engines.",
+          `A report is addressed by an unguessable reference such as ${reportIdPrefix}-4KQ2-9MXT and is never indexed by search engines.`,
           "Your recent checks list lives in your own browser's local storage. It never reaches the server.",
           "We do not embed third-party advertising or analytics cookies on the verification console or on report pages.",
         ],
@@ -70,12 +75,12 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
     title: "Terms of use",
     updated: "October 2026",
     lede:
-      "Plain terms for a free public tool. Read them; they are short, and the important part is what SG16 is not.",
+      `Plain terms for a public tool. Read them; they are short, and the important part is what ${appName} is not.`,
     blocks: [
       {
         heading: "The service",
         body: [
-          "SG16 Identifier provides automated verification reports about products, claims, websites and media. It is an evidence-aggregation and analysis tool. It is free for public use without an account, subject to rate limits that exist to protect the service and its budget.",
+          `${appName} provides automated verification reports about products, claims, websites and media. It is an evidence-aggregation and analysis tool. It is offered for public use without an account on this deployment, subject to rate limits that exist to protect the service and its budget.`,
         ],
       },
       {
@@ -92,19 +97,19 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
           "Probe, attack, overload or reverse-engineer the availability of the platform.",
           "Submit material you do not have the right to submit, including others' personal data.",
           "Circumvent rate limits, budget controls or the switches an operator has set.",
-          "Launder a conclusion — presenting an SG16 report as an official certification.",
+          `Launder a conclusion — presenting a ${appName} report as an official certification.`,
         ],
       },
       {
         heading: "Third-party content",
         body: [
-          "Reports may quote and link to third-party sources. Those sources are the property of their publishers, are quoted for identification and commentary, and their inclusion is not an endorsement by SG16 or by the publisher of SG16.",
+          "Reports may quote and link to third-party sources. Those sources are the property of their publishers, are quoted for identification and commentary, and their inclusion is not an endorsement by this service or by the publisher.",
         ],
       },
       {
         heading: "Commercial relationships",
         body: [
-          "Some outbound links are commercial and may earn SG16 a commission. They are labelled at the point of the link and logged for audit. No commercial relationship influences a verdict, a confidence figure, a ranking or a recommendation, and no payment can purchase a conclusion.",
+          "Some outbound links are commercial and may earn the operator a commission. They are labelled at the point of the link and logged for audit. No commercial relationship influences a verdict, a confidence figure, a ranking or a recommendation, and no payment can purchase a conclusion.",
         ],
       },
       {
@@ -116,7 +121,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         heading: "Liability",
         body: [
-          "To the maximum extent permitted by law, SG16 Identifier and its operators are not liable for decisions you make on the basis of a report. The report tells you what evidence was found; the decision, and its consequences, remain yours.",
+          `${appName} and its operators are not liable, to the maximum extent permitted by law, for decisions you make on the basis of a report. The report tells you what evidence was found; the decision, and its consequences, remain yours.`,
         ],
       },
     ],
@@ -124,7 +129,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
   limitations: {
     slug: "limitations",
     eyebrow: "Honesty",
-    title: "What SG16 Identifier cannot prove",
+    title: `What ${appName} cannot prove`,
     updated: "October 2026",
     lede:
       "This page exists because a verification service that hides its limits is worse than no service at all. Everything below is also repeated inside the reports themselves.",
@@ -144,7 +149,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         heading: "Not on a blocklist is not safe",
         body: [
-          "URL reputation feeds have incomplete coverage and a lag. A domain registered yesterday may not be classified yet, and a legitimate domain that has been compromised may be classified incorrectly. SG16 reports the lookup result and says explicitly that absence from a list is not an endorsement.",
+          "URL reputation feeds have incomplete coverage and a lag. A domain registered yesterday may not be classified yet, and a legitimate domain that has been compromised may be classified incorrectly. The engine reports the lookup result and says explicitly that absence from a list is not an endorsement.",
         ],
       },
       {
@@ -162,7 +167,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         heading: "The catalogue is not a manufacturer feed",
         body: [
-          "Product records are an SG16-normalised starter dataset covering popular electronics. A non-match means the record is absent, not that the product does not exist. Specifications are published as ranges and should be compared against the manufacturer's own page, which every matched report links to.",
+          "Product records come from the operator-supplied catalogue for this deployment. A non-match means the record is absent, not that the product does not exist. Specifications are published as ranges and should be compared against the manufacturer's own page, which every matched report links to.",
         ],
       },
       {
@@ -224,7 +229,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         heading: "Reporting a security problem",
         body: [
-          "If you find a vulnerability in SG16 Identifier — an SSRF bypass, an upload validation gap, an information leak — report it privately rather than demonstrating it against other users' submissions. Include enough detail to reproduce, and allow time to fix before disclosure.",
+          `If you find a vulnerability in ${appName} — an SSRF bypass, an upload validation gap, an information leak — report it privately rather than demonstrating it against other users' submissions. Include enough detail to reproduce, and allow time to fix before disclosure.`,
         ],
       },
     ],
@@ -235,7 +240,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
     title: "Advertising and affiliate disclosure",
     updated: "October 2026",
     lede:
-      "How SG16 Identifier is funded, where commercial relationships appear, and the rules that keep them away from the results.",
+      `How ${appName} is funded, where commercial relationships appear, and the rules that keep them away from the results.`,
     blocks: [
       {
         heading: "The model in one paragraph",
@@ -268,7 +273,7 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       {
         heading: "Provider relationships",
         body: [
-          "SG16 names the external providers it queries inside each report. Where a provider requires attribution, the attribution is given. No provider relationship includes preferential treatment of that provider's own products, listings or claims inside a verification result.",
+          `${appName} names the external providers it queries inside each report. Where a provider requires attribution, the attribution is given. No provider relationship includes preferential treatment of that provider's own products, listings or claims inside a verification result.`,
         ],
       },
       {
@@ -279,4 +284,5 @@ export const LEGAL_DOCS: Record<string, LegalDoc> = {
       },
     ],
   },
-};
+  };
+}

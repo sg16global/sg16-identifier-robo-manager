@@ -30,7 +30,7 @@ export default defineConfig([
     files: ["src/**/*.tsx"],
     extends: [reactRefresh.configs.vite],
     rules: {
-      // Some UI modules export helpers beside their components (signalRobot, fetchPioneers);
+      // Some UI modules export helpers beside their components (signalRobot, fetchShowcase);
       // Fast Refresh then reloads the module instead of patching it. Dev-only, so a warning.
       "react-refresh/only-export-components": "warn",
     },

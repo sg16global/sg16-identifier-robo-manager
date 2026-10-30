@@ -1,17 +1,23 @@
 import { useSyncExternalStore } from "react";
+import { identity } from "@/lib/identity";
 
 /**
- * Shared voice for the hero Robo Manager and the chat widget: one mute
+ * Shared voice for the assistant mascot and the chat widget: one mute
  * preference, one voice picker, one speak() built on window.speechSynthesis,
- * and the faint ambient hum that plays under any line being spoken.
+ * and the faint ambient hum that plays under any line being spoken. The
+ * assistant's name comes from the deployment identity (ROBO_NAME).
  * Nothing here ever throws — a browser without speech, or one that refuses to
  * speak, simply stays silent.
  */
 
+function roboName(): string {
+  return identity().roboName;
+}
+
 /* ---------------------------------- mute ---------------------------------- */
 
 // Mute preference: browser storage when it works, memory otherwise.
-const MUTE_KEY = "sg16:robot-muted";
+const MUTE_KEY = "app:robot-muted";
 let mutedMemory: boolean | null = null;
 const muteListeners = new Set<() => void>();
 
@@ -86,26 +92,25 @@ export function hasSpeech() {
 }
 
 /*
- * English voice ranking, best first. Browsers only offer what the system or the
- * browser vendor ships: Edge exposes Microsoft's neural "Online (Natural)"
- * voices, Chrome its Google voices, macOS/iOS Apple's. The old Windows desktop
- * voices (David, Zira, Mark) sound dated, so they are a last resort.
+ * English voice ranking, best first, by vendor-neutral quality markers only:
+ * whatever the visitor's system or browser ships, neural/online voices
+ * (usually labelled "Natural", "Neural", "Online", "Premium" or "Enhanced")
+ * sound best, legacy local "desktop" voices worst. No browser, OS or voice
+ * vendor is named, required or preferred by name.
  */
-const EN_VOICE_RANK = [
-  /(ryan|guy|andrew|brian|christopher|eric|roger|steffan|davis|tony).*natural/i, // Microsoft neural, male
-  /google uk english male/i,
-  /natural/i, // any other neural voice
-  /google/i,
-  /(daniel|alex|aaron|arthur|evan|nathan|tom)\b/i, // Apple's newer male voices
-  /\bmale\b/i,
-  /microsoft mark/i,
+const NEURAL_VOICE = /(natural|neural|online|premium|enhanced|studio)/i;
+const MALE_VOICE = /\bmale\b|\b(ryan|guy|andrew|brian|christopher|eric|roger|steffan|davis|tony|daniel|alex|aaron|arthur|evan|nathan|tom)\b/i;
+const EN_VOICE_RANK: Array<(voice: string) => boolean> = [
+  (v) => NEURAL_VOICE.test(v) && MALE_VOICE.test(v),
+  (v) => NEURAL_VOICE.test(v),
+  (v) => MALE_VOICE.test(v),
 ];
-const DATED_VOICE = /microsoft (david|zira)|desktop/i;
+const DATED_VOICE = /desktop/i;
 let warnedDatedVoice = false;
 
 function rankEnglish(voices: SpeechSynthesisVoice[]) {
-  for (const pattern of EN_VOICE_RANK) {
-    const match = voices.find((v) => pattern.test(v.name) || pattern.test(v.voiceURI));
+  for (const rank of EN_VOICE_RANK) {
+    const match = voices.find((v) => rank(v.name) || rank(v.voiceURI));
     if (match) return match;
   }
   const modern = voices.find((v) => !DATED_VOICE.test(v.name));
@@ -113,8 +118,8 @@ function rankEnglish(voices: SpeechSynthesisVoice[]) {
   if (voices.length > 0 && !warnedDatedVoice) {
     warnedDatedVoice = true;
     console.warn(
-      `[SG16 Robo Manager] No modern English voice is installed; using "${voices[0].name}". ` +
-        "Edge (Microsoft Natural voices) or Chrome (Google voices) sound much better.",
+      `[${roboName()}] No modern English voice is installed; using "${voices[0].name}". ` +
+        "A browser shipping neural voices (usually labelled \"Natural\" or \"Online\") sounds much better.",
     );
   }
   return voices[0] ?? null;

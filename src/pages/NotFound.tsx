@@ -1,5 +1,6 @@
 import { Link } from "@/components/link";
 import { IconArrow, IconSeal, Panel, Reveal } from "@/components/ui";
+import { identity } from "@/lib/identity";
 
 /** Any path no page renders (the Worker also answers these with HTTP 404). */
 export default function NotFoundPage() {
@@ -21,7 +22,7 @@ export default function NotFoundPage() {
               Open the verification console <IconArrow className="h-4 w-4" />
             </Link>
             <Link href="/" className="inline-flex items-center gap-2 rounded-sm border border-mist-500/25 px-5 py-3 text-[13.5px] text-mist-300 transition-colors hover:border-brand-500/50">
-              SG16 Identifier home
+              {identity().appName} home
             </Link>
           </div>
         </Panel>

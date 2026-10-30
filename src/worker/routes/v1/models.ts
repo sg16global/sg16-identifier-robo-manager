@@ -2,8 +2,9 @@ import { admit, jsonResponse, preflight } from "@/lib/universal/gateway";
 import { listModels } from "@/lib/universal/models";
 
 /**
- * OpenAI-compatible model list across every configured provider. `?live=0` skips
- * provider lookups. (With x-vitex-base-url the request is forwarded to that server instead.)
+ * Model list in the canonical chat-completions shape, across every server the
+ * operator configured. `?live=0` skips provider lookups. (With
+ * x-gateway-base-url the request is forwarded to that server instead.)
  */
 export async function GET(request: Request) {
   const admission = await admit(request);

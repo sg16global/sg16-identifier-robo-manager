@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
-import type { Pioneer, PioneersPayload } from "@/lib/types";
+import type { ShowcaseItem, ShowcasePayload } from "@/lib/types";
+import { identity } from "@/lib/identity";
 import { Reveal } from "@/components/ui";
 
 /**
- * "AI Pioneers — Intelligence Heritage" rail under the hero. Every name, role and
- * photo is fetched at runtime from /api/pioneers, which reads the live SG16 cloud;
- * nothing about the pioneers is bundled with this page.
+ * Live showcase rail under the hero. Every name, role and photo is fetched at
+ * runtime from /api/showcase, which reads an operator-configured source page
+ * (SHOWCASE_SOURCE_URL + card/name/role CSS classes — see src/lib/identity.ts).
+ * Nothing about the showcased people is bundled with the app; when no source is
+ * configured the whole section is not rendered.
  *
  * The cards roll right-to-left without end: the list is rendered twice and the
  * track slides by exactly one copy (the `ticker` keyframes, 0 → -50%), so the
  * loop restarts on an identical frame. Hover or keyboard focus pauses it; with
  * reduced motion it stops and becomes a normal sideways-scrolling row.
  */
-type PioneersState =
+type ShowcaseState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; data: PioneersPayload };
+  | { status: "ready"; data: ShowcasePayload };
 
-export async function fetchPioneers(signal?: AbortSignal): Promise<PioneersPayload> {
-  const res = await fetch("/api/pioneers", { signal, headers: { accept: "application/json" } });
-  const body = (await res.json().catch(() => null)) as ({ ok?: boolean } & Partial<PioneersPayload>) | null;
-  if (!res.ok || !body?.ok || !Array.isArray(body.pioneers) || body.pioneers.length === 0) {
-    throw new Error("Pioneers data temporarily unavailable");
+export async function fetchShowcase(signal?: AbortSignal): Promise<ShowcasePayload> {
+  const res = await fetch("/api/showcase", { signal, headers: { accept: "application/json" } });
+  const body = (await res.json().catch(() => null)) as ({ ok?: boolean } & Partial<ShowcasePayload>) | null;
+  if (!res.ok || !body?.ok || !Array.isArray(body.items) || body.items.length === 0) {
+    throw new Error("Showcase data temporarily unavailable");
   }
-  return { source: body.source ?? "", fetchedAt: body.fetchedAt ?? "", pioneers: body.pioneers };
+  return { source: body.source ?? "", fetchedAt: body.fetchedAt ?? "", items: body.items };
 }
 
 const SKELETON_CARDS = 6;
@@ -31,30 +34,35 @@ const SECONDS_PER_CARD = 4;
 // Fixed widths so 1–2 cards show on phones and 4–5 on desktop.
 const CARD_WIDTH = "w-[200px] shrink-0 sm:w-[216px] xl:w-[236px]";
 
-export function PioneersSection() {
-  const [state, setState] = useState<PioneersState>({ status: "loading" });
+export function ShowcaseSection() {
+  const showcase = identity().showcase;
+  const [state, setState] = useState<ShowcaseState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (!showcase.sourceUrl) return;
     const controller = new AbortController();
-    fetchPioneers(controller.signal)
+    fetchShowcase(controller.signal)
       .then((data) => setState({ status: "ready", data }))
       .catch(() => {
         if (!controller.signal.aborted) setState({ status: "error" });
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, showcase.sourceUrl]);
 
   const retry = () => {
     setState({ status: "loading" });
     setAttempt((n) => n + 1);
   };
 
+  // No source configured on this deployment: render nothing at all.
+  if (!showcase.sourceUrl) return null;
+
   const ready = state.status === "ready" ? state.data : null;
   const sourceHost = ready?.source ? new URL(ready.source).host : null;
 
   return (
-    <section aria-labelledby="pioneers-title" className="relative mx-auto mt-16 max-w-[1400px] px-5 sm:px-8">
+    <section aria-labelledby="showcase-title" className="relative mx-auto mt-16 max-w-[1400px] px-5 sm:px-8">
       <Reveal>
         <div className="card-edge card-feature relative overflow-hidden rounded-sm px-4 pb-6 pt-8 sm:px-8">
           <div className="grid-fine pointer-events-none absolute inset-0 opacity-40" />
@@ -64,19 +72,19 @@ export function PioneersSection() {
             <div className="flex items-center justify-center gap-4">
               <span className="hidden h-px w-24 bg-gradient-to-r from-transparent to-brand-500/80 sm:block" />
               <h2
-                id="pioneers-title"
+                id="showcase-title"
                 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-semibold uppercase tracking-[0.12em] text-brand-400 [text-shadow:0_0_22px_rgb(255_23_68/0.45)]"
               >
-                AI Pioneers
+                {showcase.title}
               </h2>
               <span className="hidden h-px w-24 bg-gradient-to-l from-transparent to-brand-500/80 sm:block" />
             </div>
-            <p className="rule-label mt-2 text-mist-400">Intelligence heritage</p>
+            {showcase.subtitle && <p className="rule-label mt-2 text-mist-400">{showcase.subtitle}</p>}
           </header>
 
           <div className="relative mt-7">
             {state.status === "loading" && (
-              <ul className="flex gap-4 overflow-hidden pb-4 pt-1" aria-busy="true" aria-label="Loading AI pioneers">
+              <ul className="flex gap-4 overflow-hidden pb-4 pt-1" aria-busy="true" aria-label={`Loading ${showcase.title}`}>
                 {Array.from({ length: SKELETON_CARDS }, (_, i) => (
                   <li key={i} className={`${CARD_WIDTH} rounded-sm border border-ink-600 bg-ink-900/80 p-3`}>
                     <div className="aspect-square w-full animate-pulse rounded-sm bg-ink-700" />
@@ -89,7 +97,7 @@ export function PioneersSection() {
 
             {state.status === "error" && (
               <div role="status" className="dash-accent flex flex-col items-center gap-4 rounded-sm bg-ink-950/70 px-6 py-12 text-center">
-                <p className="text-[15px] text-mist-300">Pioneers data temporarily unavailable</p>
+                <p className="text-[15px] text-mist-300">Showcase data temporarily unavailable</p>
                 <button
                   type="button"
                   onClick={retry}
@@ -103,16 +111,16 @@ export function PioneersSection() {
             {ready && (
               <div
                 role="region"
-                aria-label="AI pioneers, rolling — hover to pause"
+                aria-label={`${showcase.title}, rolling — hover to pause`}
                 className="scrollbar-thin overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_3%,black_97%,transparent)] motion-reduce:overflow-x-auto"
               >
                 {/* Trailing padding equals the gap, so half the track is exactly one copy plus its gap. */}
                 <ul
                   className="flex w-max animate-ticker gap-4 pb-4 pr-4 pt-2 hover:[animation-play-state:paused] focus-within:[animation-play-state:paused] motion-reduce:animate-none"
-                  style={{ animationDuration: `${ready.pioneers.length * SECONDS_PER_CARD}s` }}
+                  style={{ animationDuration: `${ready.items.length * SECONDS_PER_CARD}s` }}
                 >
-                  {[...ready.pioneers, ...ready.pioneers].map((p, i) => (
-                    <PioneerCard key={`${p.name}-${i}`} pioneer={p} duplicate={i >= ready.pioneers.length} />
+                  {[...ready.items, ...ready.items].map((p, i) => (
+                    <ShowcaseCard key={`${p.name}-${i}`} item={p} duplicate={i >= ready.items.length} />
                   ))}
                 </ul>
               </div>
@@ -121,7 +129,7 @@ export function PioneersSection() {
 
           {ready && sourceHost && (
             <p className="relative mt-2 text-center font-mono text-[10.5px] tracking-wider text-mist-600">
-              LIVE FROM {sourceHost.toUpperCase()} · {ready.pioneers.length} PIONEERS
+              LIVE FROM {sourceHost.toUpperCase()} · {ready.items.length} ENTRIES
             </p>
           )}
         </div>
@@ -131,7 +139,7 @@ export function PioneersSection() {
 }
 
 /** The second copy exists only for the seamless loop: hidden from screen readers and dropped when motion is reduced. */
-function PioneerCard({ pioneer: p, duplicate }: { pioneer: Pioneer; duplicate: boolean }) {
+function ShowcaseCard({ item: p, duplicate }: { item: ShowcaseItem; duplicate: boolean }) {
   return (
     <li
       aria-hidden={duplicate || undefined}
@@ -140,7 +148,7 @@ function PioneerCard({ pioneer: p, duplicate }: { pioneer: Pioneer; duplicate: b
       }`}
     >
       <div className="relative aspect-square overflow-hidden rounded-sm border border-ink-600 bg-ink-950">
-        {/* Remote photo served by the SG16 source site, so it bypasses the local /api/image resizer. */}
+        {/* Remote photo served by the operator's showcase source, so it bypasses the local /api/image resizer. */}
         <img
           src={p.photo}
           alt={duplicate ? "" : p.name}

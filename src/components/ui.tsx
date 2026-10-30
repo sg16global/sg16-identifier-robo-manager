@@ -8,7 +8,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { COMPANY, CertificateButton, CompanyContact } from "@/components/corporate-identity";
+import { CertificateButton, CompanyContact, operatorName } from "@/components/corporate-identity";
+import { identity } from "@/lib/identity";
 
 /* ------------------------------ motion helpers ----------------------------- */
 
@@ -341,7 +342,7 @@ export function ConfidenceMeter({
       <p className="mt-2 text-[11px] leading-relaxed text-mist-600">
         {note ??
           (value === null
-            ? "SG16 abstains rather than inventing a confidence figure when evidence is insufficient."
+            ? "The engine abstains rather than inventing a confidence figure when evidence is insufficient."
             : "Calibrated from the weighted findings and the number of retrieved sources — not asserted by the model.")}
       </p>
     </div>
@@ -370,6 +371,7 @@ const NAV = [
 ];
 
 export function SiteHeader() {
+  const id = identity();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -395,15 +397,15 @@ export function SiteHeader() {
       }`}
     >
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-5 sm:gap-6 sm:px-8">
-        <Link href="/" className="group flex shrink-0 items-center" aria-label="SG16 Identifier — home">
+        <Link href="/" className="group flex shrink-0 items-center" aria-label={`${id.appName} — home`}>
           <Img
             src="/assets/logo.png"
-            alt="SG16 Identifier — evidence before conclusion"
-            width={1986}
-            height={792}
-            sizes="(min-width: 640px) 120px, 100px"
+            alt={`${id.appName} — ${id.tagline}`}
+            width={512}
+            height={512}
+            sizes="(min-width: 640px) 48px, 40px"
             preload
-            className="h-10 w-auto transition-[filter] duration-300 group-hover:brightness-125 sm:h-12"
+            className="h-10 w-auto rounded-sm transition-[filter] duration-300 group-hover:brightness-125 sm:h-12"
           />
         </Link>
 
@@ -492,7 +494,9 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
+  const id = identity();
   const year = new Date().getFullYear();
+  const siteHost = id.siteUrl.replace(/^https?:\/\//, "");
   const columns: Array<{ title: string; links: Array<{ href: string; label: string }> }> = [
     {
       title: "Verification",
@@ -535,19 +539,17 @@ export function SiteFooter() {
           <div className="sm:col-span-2 lg:col-span-1">
             <Img
               src="/assets/logo.png"
-              alt="SG16 Identifier — evidence before conclusion"
-              width={1986}
-              height={792}
-              sizes="140px"
-              className="h-14 w-auto"
+              alt={`${id.appName} — ${id.tagline}`}
+              width={512}
+              height={512}
+              sizes="56px"
+              className="h-14 w-auto rounded-sm"
             />
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-mist-500">
-              One platform for investigating authenticity across products, news, websites and
-              digital media. Free for the public, funded by disclosed advertising, affiliate
-              referrals and business services — never by the outcome of a check.
+              {id.description}
             </p>
             <p className="mt-5 max-w-sm text-xs leading-relaxed text-mist-600">
-              SG16 Identifier is an independent verification tool. It is not affiliated with,
+              {id.appName} is an independent verification tool. It is not affiliated with,
               endorsed by or acting on behalf of any manufacturer, retailer, platform or
               fact-checking organisation named in its reports.
             </p>
@@ -587,12 +589,17 @@ export function SiteFooter() {
 
         <div className="mt-14 flex flex-col gap-4 border-t border-ink-600 pt-6 text-xs text-mist-600 md:flex-row md:items-center md:justify-between">
           <p className="font-mono">
-            © {year} {COMPANY.entity} <span className="text-brand-600">·</span> SG16 Identifier{" "}
-            <span className="text-brand-600">·</span> sg16identifier.com <span className="text-brand-600">·</span> v1.0
+            © {year} {operatorName()} <span className="text-brand-600">·</span> {id.appName}{" "}
+            {siteHost && (
+              <>
+                <span className="text-brand-600">·</span> {siteHost}{" "}
+              </>
+            )}
+            <span className="text-brand-600">·</span> v1.0
           </p>
           <p className="max-w-2xl leading-relaxed">
-            Affiliate disclosure: some outbound retailer links are commercial. Commissions never
-            influence a verification result, and every referral click is logged and attributable.
+            Disclosure: where this deployment includes commercial outbound links, any commissions
+            never influence a verification result, and every referral click is logged and attributable.
           </p>
         </div>
       </div>

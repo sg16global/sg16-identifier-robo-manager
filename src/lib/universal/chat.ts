@@ -2,26 +2,27 @@ import { recordProviderCall } from "@/lib/providers/registry";
 import { afterResponse, requestScope, runInScope } from "@/lib/request-scope";
 import type { ProviderCall } from "@/lib/types";
 import { round } from "@/lib/utils";
-import { anthropicAdapter } from "@/lib/universal/adapters/anthropic";
+import { bindingAdapter } from "@/lib/universal/adapters/binding";
+import { chatCompletionsAdapter } from "@/lib/universal/adapters/chat-completions";
 import { customAdapter } from "@/lib/universal/adapters/custom";
 import type { Adapter } from "@/lib/universal/adapters/common";
-import { geminiAdapter } from "@/lib/universal/adapters/gemini";
-import { openaiAdapter } from "@/lib/universal/adapters/openai";
-import { workersAiAdapter } from "@/lib/universal/adapters/workers-ai";
+import { generateContentAdapter } from "@/lib/universal/adapters/generate-content";
+import { messagesAdapter } from "@/lib/universal/adapters/messages";
 import type { ProviderSpec, Route } from "@/lib/universal/providers";
 import { sseStream } from "@/lib/universal/sse";
 import { GatewayError, type ChatChunk, type ChatCompletion, type ChatRequest, type Usage } from "@/lib/universal/types";
 
 /**
- * Model calls through any provider: one non-streaming primitive for internal
- * features, and the metered, fallback-aware paths behind /v1/chat/completions.
+ * Model calls through any configured server: one non-streaming primitive for
+ * internal features, and the metered, fallback-aware paths behind
+ * /v1/chat/completions.
  */
 
 const ADAPTERS: Record<ProviderSpec["protocol"], Adapter> = {
-  openai: openaiAdapter,
-  anthropic: anthropicAdapter,
-  gemini: geminiAdapter,
-  "workers-ai": workersAiAdapter,
+  "chat-completions": chatCompletionsAdapter,
+  messages: messagesAdapter,
+  "generate-content": generateContentAdapter,
+  binding: bindingAdapter,
   custom: customAdapter,
 };
 

@@ -4,11 +4,14 @@ import type { ProviderSpec, Route } from "@/lib/universal/providers";
 import { completionId, getJson, nowSeconds, postJson, providerUrl, type Adapter } from "@/lib/universal/adapters/common";
 
 /**
- * OpenAI-compatible Chat Completions: OpenAI, Azure OpenAI, Mistral, Groq,
- * DeepSeek, Qwen, xAI, OpenRouter, Together, Fireworks, Perplexity, Cerebras,
- * Cohere, NVIDIA, Hugging Face, Workers AI over REST, vLLM, Ollama, LM Studio…
- * The request passes through untouched apart from the model name, so every
- * provider-specific field a client sends still reaches the provider.
+ * The "chat-completions" wire format — the de-facto standard chat JSON API
+ * (POST {baseUrl}/chat/completions with { model, messages, … }, replies in
+ * choices[], SSE chunks with [DONE]). Hundreds of servers speak it: commercial
+ * clouds in every region, national endpoints, and self-hosted runtimes such as
+ * vLLM, Ollama, LM Studio and TGI. Which server it talks to is purely the
+ * operator's configuration (MODEL_PROVIDERS / AI_BASE_URL) — nothing here is
+ * tied to a vendor. The request passes through untouched apart from the model
+ * name, so every server-specific field a client sends still reaches it.
  */
 
 function payload(route: Route, request: ChatRequest, stream: boolean): Record<string, unknown> {
@@ -24,7 +27,7 @@ function payload(route: Route, request: ChatRequest, stream: boolean): Record<st
 }
 
 /**
- * Some OpenAI-compatible servers reject response_format or stream_options.
+ * Some chat-completions servers reject response_format or stream_options.
  * When the provider names one of them in a 400, the call is retried once
  * without it — the prompt still asks for JSON, and usage falls back to an
  * estimate.
@@ -48,7 +51,7 @@ async function send(route: Route, body: Record<string, unknown>, signal: AbortSi
   }
 }
 
-export const openaiAdapter: Adapter = {
+export const chatCompletionsAdapter: Adapter = {
   async complete(route, request, signal) {
     const res = await send(route, payload(route, request, false), signal);
     const data = (await res.json()) as ChatCompletion;

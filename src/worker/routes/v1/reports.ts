@@ -1,4 +1,5 @@
 import { loadReport } from "@/lib/db/reports";
+import { reportIdPattern } from "@/lib/identity";
 import { admit, errorResponse, jsonResponse, preflight } from "@/lib/universal/gateway";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -9,7 +10,7 @@ export async function GET(request: Request, ctx: Ctx) {
   if (admission instanceof Response) return admission;
 
   const publicId = (await ctx.params).id.trim().toUpperCase();
-  if (!/^SG16-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(publicId)) {
+  if (!reportIdPattern().test(publicId)) {
     return errorResponse(request, 400, "Malformed report reference.", "invalid_request_error");
   }
   try {

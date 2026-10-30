@@ -1,3 +1,4 @@
+import { identity } from "@/lib/identity";
 import type {
   EvidenceSource,
   ReportFinding,
@@ -164,7 +165,7 @@ export function makeFinding(
 
 export const LIMITATION_LIBRARY = {
   noProviderKey:
-    "External source providers are not configured in this deployment, so only the local SG16 rules engine and any reachable public records were used.",
+    "External source providers are not configured in this deployment, so only the local rules engine and any reachable public records were used.",
   serialInsufficient:
     "A serial number, IMEI or barcode alone cannot prove a physical item is genuine: counterfeiters copy valid identifiers from authentic units.",
   noFactCheckNotProof:
@@ -179,6 +180,7 @@ export const LIMITATION_LIBRARY = {
     "The submitted URL was not fetched by the server (outbound fetching is disabled or the target failed SSRF validation), so on-page behaviour could not be observed.",
   physicalInspection:
     "Physical inspection — weight, materials, port negotiation, hidden test menus — remains necessary for a conclusive authenticity decision.",
-  legalReview:
-    "SG16 Identifier reports evidence, not legal conclusions. Do not treat any finding as an accusation against a named person or business.",
+  get legalReview() {
+    return `${identity().appName} reports evidence, not legal conclusions. Do not treat any finding as an accusation against a named person or business.`;
+  },
 } as const;

@@ -30,12 +30,12 @@ function problem(body: unknown): string | null {
 }
 
 /**
- * OpenAI-compatible chat completions on any configured provider.
+ * Chat completions in the open chat-completions wire format, on any configured provider.
  *
  * Model: `<provider>/<model>`, a bare model name, or omitted for the default.
  * Extension: `fallbacks: ["<provider>/<model>", ...]` — tried in order when
  * the previous model is rate-limited, failing or unreachable (before any
- * streamed byte). Responses carry x-vitex-provider / x-vitex-model headers.
+ * streamed byte). Responses carry x-gateway-provider / x-gateway-model headers.
  */
 export async function POST(request: Request) {
   const admission = await admit(request, { flag: FLAG_KEYS.expensive });
@@ -74,15 +74,15 @@ export async function POST(request: Request) {
           "content-type": "text/event-stream; charset=utf-8",
           "cache-control": "no-cache, no-transform",
           "x-accel-buffering": "no",
-          "x-vitex-provider": route.provider.id,
-          "x-vitex-model": route.id,
+          "x-gateway-provider": route.provider.id,
+          "x-gateway-model": route.id,
           ...corsHeaders(request),
         },
       });
     }
     const { route, completion } = await gatewayComplete(chat, routes);
     return jsonResponse(request, completion, {
-      headers: { "x-request-id": completion.id, "x-vitex-provider": route.provider.id, "x-vitex-model": route.id },
+      headers: { "x-request-id": completion.id, "x-gateway-provider": route.provider.id, "x-gateway-model": route.id },
     });
   } catch (error) {
     if (error instanceof GatewayError) {

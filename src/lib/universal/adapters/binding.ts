@@ -5,13 +5,16 @@ import type { Route } from "@/lib/universal/providers";
 import { chunk, completionId, maxTokens, nowSeconds, textOf, toolCallId, usageChunk, usageOf, type Adapter } from "@/lib/universal/adapters/common";
 
 /**
- * Cloudflare Workers AI through the AI binding (no key, billed to the
- * account). Text models take OpenAI-style messages; results come back either
- * in the classic `{ response, tool_calls, usage }` shape or, for newer
- * models, already in Chat Completions shape — both are handled. Images in
- * content are dropped: vision models on Workers AI use a different input.
- * Without the binding, the "workers-ai" provider uses the OpenAI-compatible
- * REST endpoint and the OpenAI adapter instead.
+ * The "binding" protocol: the hosting platform's own inference binding
+ * (e.g. `"ai": { "binding": "AI" }` in wrangler.jsonc). No key and no URL —
+ * calls go through the bound object, billed to the operator's platform
+ * account. The binding name comes from the provider entry (`binding`, default
+ * "AI"), so any platform inference binding works. Text models take canonical
+ * chat messages; results come back either in the classic
+ * `{ response, tool_calls, usage }` shape or already in chat-completions
+ * shape — both are handled. Images in content are dropped: vision models on
+ * the binding use a different input. A platform's REST inference endpoint can
+ * be used instead by configuring it as an ordinary chat-completions provider.
  */
 
 function inputs(request: ChatRequest, stream: boolean): Record<string, unknown> {
@@ -33,12 +36,13 @@ function inputs(request: ChatRequest, stream: boolean): Record<string, unknown> 
   return body;
 }
 
-/** The optional Workers AI binding (wrangler.jsonc "ai"); text models are addressed by name at runtime. */
+/** The platform inference binding named by the provider entry; models are addressed by name at runtime. */
 type AiBinding = { run(model: string, inputs: Record<string, unknown>): Promise<unknown> };
 
 async function run(route: Route, request: ChatRequest, stream: boolean): Promise<unknown> {
-  const ai = (env as unknown as { AI?: AiBinding }).AI;
-  if (!ai) throw new GatewayError("The Workers AI binding is not configured.", 503, "provider_not_configured");
+  const bindingName = route.provider.binding ?? "AI";
+  const ai = (env as unknown as Record<string, AiBinding | undefined>)[bindingName];
+  if (!ai) throw new GatewayError(`The platform inference binding "${bindingName}" is not configured.`, 503, "provider_not_configured");
   try {
     return await ai.run(route.model, inputs(request, stream));
   } catch (error) {
@@ -69,7 +73,7 @@ function classicUsage(usage: ClassicResult["usage"]): Usage | undefined {
   return usage ? usageOf(usage.prompt_tokens ?? 0, usage.completion_tokens ?? 0) : undefined;
 }
 
-export const workersAiAdapter: Adapter = {
+export const bindingAdapter: Adapter = {
   async complete(route, request) {
     const result = (await run(route, request, false)) as ClassicResult & Partial<ChatCompletion>;
     if (Array.isArray(result?.choices)) {
@@ -110,7 +114,7 @@ export const workersAiAdapter: Adapter = {
         continue;
       }
       if (Array.isArray(data.choices)) {
-        // Newer models stream Chat Completions chunks already.
+        // Newer models stream chat-completions chunks already.
         native = true;
         if (data.usage) usage = data.usage;
         if (data.choices.length) yield { ...(data as ChatChunk), id, object: "chat.completion.chunk", model: route.id };

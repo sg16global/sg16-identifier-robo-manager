@@ -1,11 +1,29 @@
+import { identity } from "@/lib/identity";
 import { DnsError, resolveCname, resolveMx, resolveNs, resolveSoa, resolveTxt } from "@/lib/security/doh";
 import type { EvidenceSource, ProviderCall } from "@/lib/types";
 import { disabled, meter } from "@/lib/providers/registry";
 import { assertPublicResolution, parseUntrustedUrl, safeFetch } from "@/lib/security/url-guard";
 import { foldHomoglyphs } from "@/lib/identifiers/checksums";
 import { setting } from "@/lib/settings";
+import {
+  connectors,
+  field,
+  fieldArray,
+  fieldString,
+  runConnector,
+  type ConnectorSpec,
+} from "@/lib/connectors";
 
-/** Website & scam intelligence adapters (blueprint §5). */
+/**
+ * Website & scam intelligence.
+ *
+ * Everything structural (hostname shape, TLD abuse rates, DNS posture, HTTP
+ * probing behind the SSRF guard) runs locally. Everything that needs an
+ * outside service — certificate-transparency logs, URL reputation — goes
+ * through operator-configured connectors (src/lib/connectors.ts), so the
+ * deployment picks its own sources anywhere in the world and the engine
+ * degrades honestly when a slot is empty.
+ */
 
 export interface DnsProfile {
   hostname: string;
@@ -45,18 +63,26 @@ const RISKY_TLDS = new Map<string, number>([
   ["accountant", 0.3], ["kim", 0.1], ["buzz", 0.18], ["cyou", 0.2], ["shop", 0.05],
 ]);
 
-const FREE_SUBDOMAIN_HOSTS = [
-  "duckdns.org", "no-ip.com", "noip.com", "dynu.com", "ddns.net", "dyndns.org",
-  "freedns.afraid.org", "000webhostapp.com", "blogspot.com", "weebly.com",
-  "wixsite.com", "sites.google.com", "netlify.app", "vercel.app", "page.link",
-  "bit.ly", "tinyurl.com", "t.co", "rb.gy", "cutt.ly", "is.gd", "ow.ly", "buff.ly",
-  "shorturl.at", "rebrand.ly", "telegra.ph", "docs.google.com", "drive.google.com",
-  "forms.gle", "wa.me", "t.me", "discord.gg", "linktr.ee", "s.id", "reurl.cc",
-];
+/**
+ * URL-shortener and free-hosting domains are operator data (SHORTENER_HOSTS,
+ * FREE_HOST_DOMAINS — comma lists): which services count as anonymising
+ * depends on the region and ecosystem a deployment investigates. Nothing is
+ * built in, so no vendor is privileged or implied.
+ */
+function csvSetting(name: string): string[] {
+  return (setting(name) ?? "")
+    .split(/[\s,]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function shortenerAndFreeHosts(): string[] {
+  return [...csvSetting("SHORTENER_HOSTS"), ...csvSetting("FREE_HOST_DOMAINS")];
+}
 
 export function isUrlShortenerOrFreeHost(hostname: string): string | null {
   const h = hostname.toLowerCase();
-  return FREE_SUBDOMAIN_HOSTS.find((d) => h === d || h.endsWith(`.${d}`)) ?? null;
+  return shortenerAndFreeHosts().find((d) => h === d || h.endsWith(`.${d}`)) ?? null;
 }
 
 export async function collectDnsProfile(hostname: string): Promise<DnsProfile> {
@@ -72,6 +98,9 @@ export async function collectDnsProfile(hostname: string): Promise<DnsProfile> {
   const resolution = await assertPublicResolution(hostname);
   profile.addresses = resolution.addresses;
   if (!resolution.ok) profile.errors.push(resolution.reason ?? "resolution failed");
+  else if (resolution.unresolved) {
+    profile.errors.push("A/AAAA: no DNS resolver configured (DNS_RESOLVERS); the name was not independently resolved");
+  }
 
   const attempts: Array<[string, () => Promise<void>]> = [
     ["SOA", async () => {
@@ -123,19 +152,16 @@ export interface TlsProfile {
 }
 
 /*
- * Certificate details come from Certificate Transparency (crt.sh), not a TLS
+ * Certificate details come from Certificate Transparency logs, not from a TLS
  * handshake: Workers cannot read a peer certificate, but browsers accept a
  * publicly trusted certificate only if it is logged in CT, so the host's
  * currently valid certificate (issuer, subject, validity, names) is read from
- * the logs. A host with no valid logged certificate is one browsers would warn
- * about. If the CT service cannot be reached, that is a gap in this check —
- * reported as `unsupported` — not evidence about the site.
+ * the logs. Which log services a deployment queries is configuration
+ * (CT_CONNECTORS — any CT log front-end or search API that returns JSON).
+ * A host with no valid logged certificate is one browsers would warn about.
+ * If no connector is configured or none can be reached, that is a gap in
+ * this check — reported as `unsupported` — not evidence about the site.
  */
-const CRTSH_ENDPOINT = "https://crt.sh/";
-const CERTSPOTTER_ENDPOINT = "https://api.certspotter.com/v1/issuances";
-const CT_TIMEOUT_MS = 5000;
-const CT_USER_AGENT = "Mozilla/5.0 (compatible; SG16-Identifier/1.0; +https://sg16identifier.com/bot)";
-const CT_MAX_BYTES = 4 * 1024 * 1024;
 const CT_MEMO_MS = 60 * 60 * 1000;
 const ctMemo = new Map<string, { at: number; profile: TlsProfile }>();
 
@@ -152,7 +178,7 @@ function dnField(dn: string | undefined, key: "O" | "CN"): string | undefined {
   return value?.replace(/^"|"$/g, "").trim() || undefined;
 }
 
-/** crt.sh timestamps are UTC without a zone designator. */
+/** CT timestamps are UTC; services differ on whether they carry a zone designator. */
 function ctTime(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const ms = Date.parse(/[zZ]$|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
@@ -163,50 +189,70 @@ function ctNames(entry: CtEntry): string[] {
   return [...new Set((entry.name_value ?? "").split("\n").map((n) => n.trim().toLowerCase()).filter(Boolean))];
 }
 
-async function readCtJson(url: string, service: string, headers: Record<string, string> = {}): Promise<unknown[]> {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(CT_TIMEOUT_MS),
-    headers: { accept: "application/json", "user-agent": CT_USER_AGENT, ...headers },
-  });
-  if (!res.ok) throw new Error(`${service} responded ${res.status}`);
-  const text = await res.text();
-  if (text.length > CT_MAX_BYTES) throw new Error(`${service} returned more than can be inspected`);
-  const parsed: unknown = JSON.parse(text || "[]");
-  return Array.isArray(parsed) ? parsed : [];
+/** Maps one connector's reply onto the canonical CT entry shape. */
+function mapCtEntries(spec: ConnectorSpec, data: unknown): CtEntry[] {
+  const map = spec.responseMap;
+  const items = map.entries ? fieldArray(data, map.entries) : Array.isArray(data) ? data : [];
+  const split = map.namesSplit ?? "\n";
+  const namesPath = map.names ?? map.dnsNames ?? map.nameValue;
+  const out: CtEntry[] = [];
+  for (const item of items) {
+    // The names field is either an array of strings or one delimited string.
+    const namesRaw = namesPath ? field(item, namesPath) : undefined;
+    const names = Array.isArray(namesRaw)
+      ? namesRaw.map((n) => String(n).trim()).filter(Boolean)
+      : typeof namesRaw === "string"
+        ? namesRaw.split(split).map((n) => n.trim()).filter(Boolean)
+        : [];
+    const commonName = fieldString(item, map.commonName ?? map.cn ?? map.subject);
+    out.push({
+      issuer_name: fieldString(item, map.issuer ?? map.issuerName),
+      common_name: commonName,
+      name_value: names.length ? names.join("\n") : commonName ?? "",
+      not_before: fieldString(item, map.notBefore ?? map.validFrom),
+      not_after: fieldString(item, map.notAfter ?? map.validTo),
+    });
+  }
+  return out;
 }
 
-/** crt.sh: one query per identity (the host, and the wildcard that would cover it). */
-async function crtshEntries(identities: string[]): Promise<CtEntry[]> {
-  const lists = await Promise.all(
-    identities.map((identity) =>
-      readCtJson(`${CRTSH_ENDPOINT}?q=${encodeURIComponent(identity)}&output=json&exclude=expired&deduplicate=Y`, "crt.sh"),
-    ),
-  );
-  return lists.flat() as CtEntry[];
-}
+/** Queries the configured CT connectors; the first usable answer wins. */
+async function ctEntriesFor(identities: string[], host: string): Promise<CtEntry[]> {
+  const configured = connectors("ct");
+  if (!configured.length) throw new Error("no CT connector configured (CT_CONNECTORS)");
+  const labels = host.split(".");
+  const wildcard = labels.length > 2 ? `*.${labels.slice(1).join(".")}` : host;
+  const errors: string[] = [];
 
-/** Cert Spotter (SSLMate): unexpired issuances for the host, wildcards included. Set CERTSPOTTER_API_KEY for a higher quota. */
-async function certspotterEntries(host: string): Promise<CtEntry[]> {
-  const key = setting("CERTSPOTTER_API_KEY");
-  const url = `${CERTSPOTTER_ENDPOINT}?domain=${encodeURIComponent(host)}&match_wildcards=true&expand=dns_names&expand=issuer`;
-  const issuances = (await readCtJson(url, "Cert Spotter", key ? { authorization: `Bearer ${key}` } : {})) as Array<{
-    dns_names?: string[];
-    issuer?: { name?: string };
-    not_before?: string;
-    not_after?: string;
-  }>;
-  return issuances.map((i) => ({
-    issuer_name: i.issuer?.name,
-    common_name: i.dns_names?.[0],
-    name_value: (i.dns_names ?? []).join("\n"),
-    not_before: i.not_before,
-    not_after: i.not_after,
-  }));
+  for (const spec of configured) {
+    // A connector templated on {{identity}} is asked once per identity; one
+    // templated on {{hostname}} answers for the host (and its wildcards) in a
+    // single call.
+    const perIdentity = spec.url.includes("{{identity}}") || spec.url.includes("{{ identity }}");
+    const queries = perIdentity ? identities : [host];
+    try {
+      const lists: CtEntry[][] = [];
+      for (const identityName of queries) {
+        const data = await runConnector(spec, {
+          identity: identityName,
+          hostname: host,
+          wildcard,
+        }, { "user-agent": identity().botUserAgent });
+        lists.push(mapCtEntries(spec, data));
+      }
+      const entries = lists.flat();
+      if (entries.length) return entries;
+      errors.push(`${spec.label} logged no certificate for ${host}`);
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
+  }
+  throw new Error(errors.join("; ") || "CT lookup unavailable");
 }
 
 function ctFailure(error: unknown): string {
   const name = (error as { name?: string }).name;
-  return name === "TimeoutError" || name === "AbortError" ? `no answer within ${CT_TIMEOUT_MS / 1000}s` : (error as Error).message;
+  return name === "TimeoutError" || name === "AbortError" ? "no answer in time" : (error as Error).message;
 }
 
 export async function collectTlsProfile(hostname: string): Promise<TlsProfile> {
@@ -217,16 +263,14 @@ export async function collectTlsProfile(hostname: string): Promise<TlsProfile> {
   // A wildcard certificate for the parent domain also covers a one-label subdomain.
   const labels = host.split(".");
   const identities = labels.length > 2 ? [host, `*.${labels.slice(1).join(".")}`] : [host];
-  // Two independent CT search services: the second is asked only when the first cannot answer.
+
   let entries: CtEntry[];
   try {
-    entries = await crtshEntries(identities);
-  } catch (first) {
-    try {
-      entries = await certspotterEntries(host);
-    } catch (second) {
-      return { ok: false, unsupported: true, error: `Certificate Transparency lookup unavailable: ${ctFailure(first)}; ${ctFailure(second)}` };
-    }
+    entries = await ctEntriesFor(identities, host);
+  } catch (failure) {
+    const profile: TlsProfile = { ok: false, unsupported: true, error: `Certificate Transparency lookup unavailable: ${ctFailure(failure)}` };
+    ctMemo.set(host, { at: Date.now(), profile });
+    return profile;
   }
 
   const now = Date.now();
@@ -242,11 +286,11 @@ export async function collectTlsProfile(hostname: string): Promise<TlsProfile> {
   if (!valid.length) {
     profile = { ok: false, error: `no currently valid, publicly trusted certificate for ${host} is logged in Certificate Transparency` };
   } else {
-    // The oldest still-valid certificate. CT logs a certificate before the site deploys it,
-    // so the newest one is often not yet served (github.com serves a months-old certificate
-    // while a fresh one is already logged). "Issued very recently" then means every valid
-    // certificate for the host is new — the pattern of a newly stood-up site. Certificates
-    // issued *for* the host (subject CN) are preferred over ones that merely list it.
+    // The oldest still-valid certificate. CT logs a certificate before the site
+    // deploys it, so the newest one is often not yet served. "Issued very
+    // recently" then means every valid certificate for the host is new — the
+    // pattern of a newly stood-up site. Certificates issued *for* the host
+    // (subject CN) are preferred over ones that merely list it.
     const ownCertificates = valid.filter((entry) => covers((entry.common_name ?? "").toLowerCase()));
     const current = (ownCertificates.length ? ownCertificates : valid).reduce((a, b) =>
       ctTime(b.not_before)! < ctTime(a.not_before)! ? b : a,
@@ -268,20 +312,29 @@ export async function collectTlsProfile(hostname: string): Promise<TlsProfile> {
   return profile;
 }
 
-export interface WebRiskResult {
+export interface ReputationResult {
   threats: string[];
   call: ProviderCall;
 }
 
-export async function lookupWebRisk(url: string, reportId?: string): Promise<WebRiskResult> {
-  const key = setting("WEB_RISK_API_KEY") ?? setting("SAFE_BROWSING_API_KEY");
-  if (!key) {
+/**
+ * URL reputation through operator-configured connectors (REPUTATION_CONNECTORS).
+ * A connector's responseMap names where threats live:
+ *   { "threats": "threat.threatTypes" }  — an array of category strings, or
+ *   { "flagged": "malicious" }           — a boolean/verdict field, or
+ *   { "verdict": "data.verdict" }        — a string verdict.
+ * With no connector configured the report records that no commercial
+ * reputation lookup was performed — never a guess.
+ */
+export async function lookupReputation(url: string, reportId?: string): Promise<ReputationResult> {
+  const configured = connectors("reputation");
+  if (!configured.length) {
     return {
       threats: [],
       call: disabled(
-        "web-risk",
-        "uris:search",
-        "No Web Risk / Safe Browsing key configured — no commercial URL reputation lookup was performed.",
+        "reputation",
+        "reputation:lookup",
+        "No reputation connector is configured (REPUTATION_CONNECTORS) — no external URL reputation lookup was performed.",
       ),
     };
   }
@@ -289,28 +342,46 @@ export async function lookupWebRisk(url: string, reportId?: string): Promise<Web
   if (!parsed.ok || !parsed.url) {
     return {
       threats: [],
-      call: { provider: "web-risk", operation: "uris:search", status: "skipped", latencyMs: 0, costUsd: 0, detail: parsed.reason },
+      call: { provider: "reputation", operation: "reputation:lookup", status: "skipped", latencyMs: 0, costUsd: 0, detail: parsed.reason },
     };
   }
-  try {
-    const { data } = await meter("web-risk", "uris:search", async () => {
-      const endpoint = new URL("https://webrisk.googleapis.com/v1/uris:search");
-      endpoint.searchParams.set("uri", parsed.url!.toString());
-      endpoint.searchParams.append("threatTypes", "MALWARE");
-      endpoint.searchParams.append("threatTypes", "SOCIAL_ENGINEERING");
-      endpoint.searchParams.append("threatTypes", "UNWANTED_SOFTWARE");
-      endpoint.searchParams.set("key", key);
-      const res = await fetch(endpoint.toString(), { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) throw new Error(`Web Risk responded ${res.status}`);
-      return (await res.json()) as { threat?: { threatTypes?: string[] } };
-    }, { reportId });
-    return { threats: data.threat?.threatTypes ?? [], call: { provider: "web-risk", operation: "uris:search", status: "ok", latencyMs: 0, costUsd: 0.005 } };
-  } catch (error) {
-    return {
-      threats: [],
-      call: { provider: "web-risk", operation: "uris:search", status: "error", latencyMs: 0, costUsd: 0, error: (error as Error).message },
-    };
+
+  const errors: string[] = [];
+  for (const spec of configured) {
+    try {
+      const { data, call } = await meter(spec.id, "reputation:lookup", async () => {
+        return runConnector(spec, {
+          url: parsed.url!.toString(),
+          hostname: parsed.url!.hostname,
+        });
+      }, { reportId, costOverride: spec.costPerCallUsd });
+
+      const map = spec.responseMap;
+      let threats = fieldArray(data, map.threats).map((t) => String(t));
+      if (!threats.length && map.flagged) {
+        const flagged = field(data, map.flagged);
+        if (flagged === true || flagged === "true" || flagged === 1) threats = ["FLAGGED"];
+      }
+      if (!threats.length && map.verdict) {
+        const verdict = fieldString(data, map.verdict);
+        if (verdict && !/^(safe|clean|ok|good|benign)$/i.test(verdict)) threats = [verdict.toUpperCase()];
+      }
+      return { threats, call: { ...call, costUsd: spec.costPerCallUsd } };
+    } catch (error) {
+      errors.push((error as Error).message);
+    }
   }
+  return {
+    threats: [],
+    call: {
+      provider: configured[0].id,
+      operation: "reputation:lookup",
+      status: "error",
+      latencyMs: 0,
+      costUsd: 0,
+      error: errors.join("; "),
+    },
+  };
 }
 
 export interface HttpProbe {
@@ -330,10 +401,20 @@ export interface HttpProbe {
   bytes?: number;
 }
 
-const PAYMENT_KEYWORDS = [
-  "western union", "moneygram", "gift card", "bitcoin", "usdt", "cryptocurrency payment",
-  "wire transfer", "paypal friends and family", "cashapp", "zelle", "paysafecard",
+/**
+ * Irreversible-payment vocabulary. The built-in terms are generic (no vendor
+ * names); operators extend them for their market with PAYMENT_TERMS (comma
+ * list), e.g. the remittance rails, wallets and card brands their users are
+ * actually asked to pay through.
+ */
+const GENERIC_PAYMENT_KEYWORDS = [
+  "gift card", "prepaid card", "bitcoin", "usdt", "cryptocurrency payment", "crypto wallet",
+  "wire transfer", "money transfer service", "irreversible payment",
 ];
+
+function paymentKeywords(): string[] {
+  return [...GENERIC_PAYMENT_KEYWORDS, ...csvSetting("PAYMENT_TERMS")];
+}
 
 /**
  * Fetches a submitted URL *only* through the SSRF guard. The body is treated as
@@ -382,7 +463,7 @@ export async function probeHttp(raw: string, reportId?: string): Promise<{ probe
       probe.credentialFormDetected = /<input[^>]+type=["']?password/i.test(data.body) &&
         /<form/i.test(data.body);
       const lower = text.toLowerCase();
-      probe.paymentKeywords = PAYMENT_KEYWORDS.filter((k) => lower.includes(k));
+      probe.paymentKeywords = paymentKeywords().filter((k) => lower.includes(k));
       probe.titleSnippets.push(text.slice(0, 240));
     }
     return { probe, call: { provider: "http-probe", operation: "safeFetch", status: data.ok ? "ok" : "error", latencyMs: 0, costUsd: 0, detail: data.reason } };
@@ -417,10 +498,12 @@ const BRAND_AFFIXES = [
 
 /**
  * Whether `brand` appears in the hostname as a whole word: a label or a
- * hyphen-separated part ("paypal-login", "royal-mail"), or glued to a common
- * scam word ("paypalsecure"). Never as a fragment of an unrelated word ("x" is
- * not in example.com, "ups" not in groups.google.com, "chase" not in
- * purchase.com), and never in the public suffix ("gov" in nhs.gov.uk).
+ * hyphen-separated part ("brand-login", "brand-mail"), or glued to a common
+ * scam word ("brandsecure"). Never as a fragment of an unrelated word ("x" is
+ * not in example.com, "ups" not in groups.example.com, "chase" not in
+ * purchase.com), and never in the public suffix ("gov" in service.gov.uk).
+ * Brands come from the operator's configuration and catalogue — the function
+ * itself is pure logic.
  */
 export function hostnameHasBrand(hostname: string, brand: string): boolean {
   const h = hostname.toLowerCase().replace(/\.$/, "");

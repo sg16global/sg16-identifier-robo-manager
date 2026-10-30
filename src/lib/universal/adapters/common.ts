@@ -11,7 +11,7 @@ import {
   type Usage,
 } from "@/lib/universal/types";
 
-/** One wire protocol. Every adapter returns OpenAI-shaped results. */
+/** One wire protocol. Every adapter returns the gateway's canonical chat shape. */
 export interface Adapter {
   complete(route: Route, request: ChatRequest, signal: AbortSignal): Promise<ChatCompletion>;
   /** Yields content chunks, then one finish chunk, then (when known) one usage-only chunk. */
@@ -22,6 +22,8 @@ export interface Adapter {
 export function providerUrl(provider: ProviderSpec, path: string, extraQuery: Record<string, string> = {}): string {
   const url = new URL(`${provider.baseUrl}${path}`);
   for (const [k, v] of Object.entries({ ...provider.query, ...extraQuery })) url.searchParams.set(k, v);
+  // Servers that authenticate with a query parameter instead of a header.
+  if (provider.authQuery && provider.apiKey) url.searchParams.set(provider.authQuery, provider.apiKey);
   return url.toString();
 }
 

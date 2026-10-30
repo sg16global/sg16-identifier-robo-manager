@@ -15,7 +15,8 @@ import {
 import type { EngineFlags } from "@/lib/verification/module";
 import type { VerificationReport } from "@/lib/types";
 import { newId, round } from "@/lib/utils";
-import { setting } from "@/lib/settings";
+import { envFlag, numSetting } from "@/lib/settings";
+import { dnsConfigured } from "@/lib/security/doh";
 
 export const FLAG_KEYS = {
   expensive: "expensive_providers",
@@ -25,7 +26,7 @@ export const FLAG_KEYS = {
 } as const;
 
 const DEFAULTS: Record<string, { enabled: boolean; detail: string }> = {
-  [FLAG_KEYS.expensive]: { enabled: true, detail: "Paid provider calls (fact-check, web risk, AI, search)." },
+  [FLAG_KEYS.expensive]: { enabled: true, detail: "Metered connector and model calls (fact-check, reputation, AI, search)." },
   [FLAG_KEYS.outboundFetch]: { enabled: true, detail: "Server-side fetching of user-submitted URLs through the SSRF guard." },
   [FLAG_KEYS.dns]: { enabled: true, detail: "DNS and TLS intelligence lookups." },
   [FLAG_KEYS.intake]: { enabled: true, detail: "Accept new public verification requests." },
@@ -48,7 +49,9 @@ export async function getEngineFlags(): Promise<EngineFlags> {
   return {
     expensiveEnabled: f[FLAG_KEYS.expensive] ?? true,
     outboundFetchEnabled: f[FLAG_KEYS.outboundFetch] ?? true,
-    dnsEnabled: f[FLAG_KEYS.dns] ?? true,
+    // DNS intelligence needs the console flag, the ENABLE_DNS setting, and at
+    // least one resolver endpoint configured (DNS_RESOLVERS).
+    dnsEnabled: (f[FLAG_KEYS.dns] ?? true) && envFlag("ENABLE_DNS", true) && dnsConfigured(),
   };
 }
 
@@ -73,7 +76,7 @@ export async function ensureFlagsSeeded(): Promise<void> {
   }
 }
 
-const RETENTION_DAYS = Number(setting("SG16_RETENTION_DAYS") ?? "30");
+const RETENTION_DAYS = numSetting("RETENTION_DAYS", 30);
 
 export async function persistReport(report: VerificationReport, ipFingerprint?: string): Promise<void> {
   const expires = new Date(Date.now() + RETENTION_DAYS * 86400000);

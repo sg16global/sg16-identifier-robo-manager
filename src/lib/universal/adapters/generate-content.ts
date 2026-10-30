@@ -22,15 +22,19 @@ import {
 } from "@/lib/universal/adapters/common";
 
 /**
- * Google Gemini API (models/{model}:generateContent, :streamGenerateContent?alt=sse).
+ * The "generate-content" wire format — the resource-style chat JSON API
+ * (POST {baseUrl}/models/{model}:generateContent and :streamGenerateContent?alt=sse,
+ * contents[]/parts[] payloads). Served by several clouds and gateways; the
+ * authentication header or query parameter (and any API-version header) is
+ * whatever the provider entry configures — nothing vendor-specific is baked in.
  *
  * Translation notes:
  *  - system/developer turns become `systemInstruction`; assistant turns use
  *    role "model"; tool results become `functionResponse` parts, named by
  *    looking up the call they answer.
- *  - Tool schemas are reduced to the OpenAPI subset Gemini accepts.
+ *  - Tool schemas are reduced to the OpenAPI subset the wire format accepts.
  *  - JSON mode is `responseMimeType: application/json`, except alongside tools,
- *    where Gemini does not allow it.
+ *    where the format does not allow it.
  *  - Thought parts and thought tokens are not returned as content; thought
  *    tokens are counted as completion tokens, since they are billed as output.
  */
@@ -112,7 +116,7 @@ const UNSUPPORTED_SCHEMA_KEYS = new Set([
   "patternProperties", "unevaluatedProperties", "dependentSchemas", "examples", "strict",
 ]);
 
-/** Reduces JSON Schema to the OpenAPI 3 subset Gemini function declarations accept. */
+/** Reduces JSON Schema to the OpenAPI 3 subset function declarations accept. */
 function sanitizeSchema(schema: unknown): unknown {
   if (Array.isArray(schema)) return schema.map(sanitizeSchema);
   if (!schema || typeof schema !== "object") return schema;
@@ -134,7 +138,7 @@ function sanitizeSchema(schema: unknown): unknown {
 function functionParameters(parameters: Record<string, unknown> | undefined): unknown {
   if (!parameters) return undefined;
   const props = parameters.properties as Record<string, unknown> | undefined;
-  // Gemini rejects an OBJECT schema with no properties; omit it instead.
+  // The wire format rejects an OBJECT schema with no properties; omit it instead.
   if (parameters.type === "object" && (!props || !Object.keys(props).length)) return undefined;
   return sanitizeSchema(parameters);
 }
@@ -188,7 +192,7 @@ function modelPath(model: string) {
   return model.includes("/") ? model : `models/${model}`;
 }
 
-interface GeminiResponse {
+interface GenerateContentResponse {
   candidates?: Array<{
     content?: { parts?: Array<{ text?: string; thought?: boolean; functionCall?: { id?: string; name?: string; args?: unknown } }> };
     finishReason?: string;
@@ -208,7 +212,7 @@ function finishReason(reason: string | undefined, hasTools: boolean, blocked: bo
   return "stop";
 }
 
-function readParts(data: GeminiResponse): { text: string; calls: ToolCall[] } {
+function readParts(data: GenerateContentResponse): { text: string; calls: ToolCall[] } {
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   const text = parts.filter((p) => typeof p.text === "string" && !p.thought).map((p) => p.text).join("");
   const calls: ToolCall[] = parts
@@ -221,16 +225,16 @@ function readParts(data: GeminiResponse): { text: string; calls: ToolCall[] } {
   return { text, calls };
 }
 
-function usage(data: GeminiResponse) {
+function usage(data: GenerateContentResponse) {
   const meta = data.usageMetadata;
   return usageOf(meta?.promptTokenCount ?? 0, (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0));
 }
 
-export const geminiAdapter: Adapter = {
+export const generateContentAdapter: Adapter = {
   async complete(route, request, signal) {
     const url = providerUrl(route.provider, `/${modelPath(route.model)}:generateContent`);
     const res = await postJson(route.provider, url, payload(request), signal);
-    const data = (await res.json()) as GeminiResponse;
+    const data = (await res.json()) as GenerateContentResponse;
     const { text, calls } = readParts(data);
     const blocked = !data.candidates?.length && Boolean(data.promptFeedback?.blockReason);
     const completion: ChatCompletion = {
@@ -258,10 +262,10 @@ export const geminiAdapter: Adapter = {
     let toolCount = 0;
     let reason: string | undefined;
     let blocked = false;
-    let last: GeminiResponse = {};
+    let last: GenerateContentResponse = {};
     yield chunk(id, route, { role: "assistant", content: "" });
     for await (const event of readSse(res.body)) {
-      let data: GeminiResponse;
+      let data: GenerateContentResponse;
       try {
         data = JSON.parse(event.data);
       } catch {
