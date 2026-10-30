@@ -11,6 +11,7 @@
  */
 
 import { latin1, toHex } from "@/lib/utils";
+import { setting } from "@/lib/settings";
 
 export interface PngTextChunk {
   key: string;
@@ -57,44 +58,65 @@ export interface MediaForensics {
   restartMarkers: number;
 }
 
-const GENERATOR_SIGNATURES: Array<[RegExp, string]> = [
-  [/stable[\s-_]?diffusion/i, "Stable Diffusion"],
-  [/automatic1111|a1111/i, "AUTOMATIC1111 WebUI"],
-  [/comfyui/i, "ComfyUI"],
-  [/midjourney/i, "Midjourney"],
-  [/dall[\s-]?e|openai|gpt-image/i, "OpenAI image model"],
-  [/firefly/i, "Adobe Firefly"],
-  [/imagen|gemini/i, "Google Imagen / Gemini"],
-  [/black forest labs|\bflux\b/i, "Black Forest Labs FLUX"],
-  [/novelai/i, "NovelAI"],
-  [/runway/i, "Runway"],
-  [/leonardo\.?ai/i, "Leonardo.ai"],
-  [/ideogram/i, "Ideogram"],
-  [/recraft/i, "Recraft"],
-  [/pika/i, "Pika"],
-  [/luma/i, "Luma"],
-  [/\bsora\b/i, "OpenAI Sora"],
-  [/\bveo\b/i, "Google Veo"],
+/**
+ * Generative-source markers, vendor-neutral by construction.
+ *
+ * What stays in code is standards vocabulary only: the IPTC digitalSourceType
+ * values and the C2PA generative assertion — identifiers from open standards,
+ * not company names. Everything brand-shaped is operator configuration:
+ *
+ *   MEDIA_SIGNATURES = JSON [{"pattern":"…","label":"…","kind":"generator"|"edit"}]
+ *
+ * (kind defaults to "generator"; patterns compile case-insensitively; a bad
+ * entry is skipped, never fatal.) Any deployment can teach this scanner its
+ * own sovereign, in-house or commercial generators — or none at all — without
+ * a code change. Nothing here accepts or rejects any connection: the scanner
+ * only reads what a submitted FILE declares about itself.
+ */
+const STANDARDS_GENERATOR_SIGNATURES: Array<[RegExp, string]> = [
   [/trainedAlgorithmicMedia|compositeSynthetic|algorithmicMedia/i, "IPTC generative digitalSourceType"],
   [/c2pa\.generativeai|generativeai/i, "C2PA generative-AI assertion"],
 ];
 
-const EDIT_SIGNATURES: Array<[RegExp, string]> = [
-  [/photoshop/i, "Adobe Photoshop"],
-  [/lightroom/i, "Adobe Lightroom"],
-  [/gimp/i, "GIMP"],
-  [/affinity/i, "Affinity Photo"],
-  [/snapseed/i, "Snapseed"],
-  [/facetune/i, "Facetune"],
-  [/picsart/i, "PicsArt"],
-  [/canva/i, "Canva"],
-  [/darktable/i, "darktable"],
-  [/pixelmator/i, "Pixelmator"],
-  [/after effects/i, "After Effects"],
-  [/premiere/i, "Premiere Pro"],
-  [/topaz/i, "Topaz (upscaling / denoise)"],
-  [/capture one/i, "Capture One"],
-];
+interface SignatureSpec {
+  pattern: RegExp;
+  label: string;
+}
+
+function configuredSignatures(kind: "generator" | "edit"): SignatureSpec[] {
+  const raw = setting("MEDIA_SIGNATURES");
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: SignatureSpec[] = [];
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    const e = entry as Record<string, unknown>;
+    if (typeof e.pattern !== "string" || typeof e.label !== "string" || !e.label.trim()) continue;
+    const entryKind = e.kind === "edit" ? "edit" : "generator";
+    if (entryKind !== kind) continue;
+    try {
+      out.push({ pattern: new RegExp(e.pattern, "i"), label: e.label.trim() });
+    } catch {
+      /* an unparsable pattern is skipped, never fatal */
+    }
+  }
+  return out;
+}
+
+function generatorSignatures(): SignatureSpec[] {
+  return [...STANDARDS_GENERATOR_SIGNATURES.map(([pattern, label]) => ({ pattern, label })), ...configuredSignatures("generator")];
+}
+
+function editSignatures(): SignatureSpec[] {
+  return configuredSignatures("edit");
+}
+
 
 function readU16(buf: Uint8Array, off: number, le: boolean): number {
   return le ? buf[off] | (buf[off + 1] << 8) : (buf[off] << 8) | buf[off + 1];
@@ -259,9 +281,9 @@ function parseTiff(buf: Uint8Array, tiffStart: number): { tags: Record<string, s
 
 function scanGenerators(haystack: string, field: string): GeneratorSignal[] {
   const out: GeneratorSignal[] = [];
-  for (const [re, tool] of GENERATOR_SIGNATURES) {
-    const m = haystack.match(re);
-    if (m) out.push({ tool, evidence: m[0].slice(0, 120), field });
+  for (const { pattern, label } of generatorSignatures()) {
+    const m = haystack.match(pattern);
+    if (m) out.push({ tool: label, evidence: m[0].slice(0, 120), field });
   }
   return out;
 }
@@ -326,7 +348,7 @@ export function analyzeMedia(bytes: Uint8Array): MediaForensics {
       off = dataStart + len + 4;
       if (type === "IEND") break;
     }
-    if (asText.includes("XML:com.adobe.xmp")) {
+    if (asText.includes("<?xpacket") || asText.includes("<x:xmpmeta")) {
       const start = asText.indexOf("<x:xmpmeta");
       const end = asText.indexOf("</x:xmpmeta>");
       if (start >= 0 && end > start) result.xmpPacket = asText.slice(start, end + 12);
@@ -368,8 +390,16 @@ export function analyzeMedia(bytes: Uint8Array): MediaForensics {
           result.exif = { ...result.exif, ...tiff.tags };
           result.gpsPresent = result.gpsPresent || tiff.gps;
           result.thumbnailPresent = result.thumbnailPresent || tiff.thumbnail;
-        } else if (latin(bytes, dataStart, 29).startsWith("http://ns.adobe.com/xap/1.0/")) {
-          result.xmpPacket = utf8(bytes, dataStart + 29, Math.max(0, dataLen - 29));
+        } else {
+          // APP1 carrying an XMP packet: the payload opens with the XMP
+          // namespace URI (the standard's …/xap/1.0/ path — matched
+          // structurally, host-agnostic), a NUL, then the packet itself.
+          const head = latin(bytes, dataStart, Math.min(64, dataLen));
+          const nul = head.indexOf("\0");
+          const ns = nul > 0 ? head.slice(0, nul) : "";
+          if (/^https?:\/\/.+\/xap\/1\.0\/$/.test(ns)) {
+            result.xmpPacket = utf8(bytes, dataStart + ns.length + 1, Math.max(0, dataLen - ns.length - 1));
+          }
         }
       }
       if (marker === 0xeb) {
@@ -457,6 +487,15 @@ export function analyzeMedia(bytes: Uint8Array): MediaForensics {
     }
   }
 
+  // Structural wildcard: generators of any brand that embed their parameter,
+  // prompt or workflow blobs leave them under these standard-ish chunk keys.
+  for (const key of ["png:parameters", "png:prompt", "png:workflow"]) {
+    const blob = result.xmpFields[key];
+    if (blob && !result.generatorSignals.some((g) => g.field === key)) {
+      result.generatorSignals.push({ tool: "Embedded generation parameters", evidence: `${key}: ${blob.slice(0, 100)}`, field: key });
+    }
+  }
+
   const software = result.exif["Software"] ?? result.xmpFields["xmp:CreatorTool"] ?? result.xmpFields["tiff:Software"];
   if (software) result.software = software;
   result.cameraMake = result.exif["Make"];
@@ -465,8 +504,8 @@ export function analyzeMedia(bytes: Uint8Array): MediaForensics {
   result.modifiedAt = result.exif["DateTime"];
 
   const editHaystack = [software ?? "", result.xmpPacket ?? "", JSON.stringify(result.exif)].join(" ");
-  for (const [re, tool] of EDIT_SIGNATURES) {
-    if (re.test(editHaystack)) result.editSignals.push(tool);
+  for (const { pattern, label } of editSignatures()) {
+    if (pattern.test(editHaystack)) result.editSignals.push(label);
   }
   result.generatorSignals.push(...scanGenerators(asText.slice(0, 200000), "container text scan"));
   result.generatorSignals = result.generatorSignals.filter(

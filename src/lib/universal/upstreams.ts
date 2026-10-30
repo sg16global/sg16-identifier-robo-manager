@@ -59,8 +59,19 @@ const DROP_REQUEST_HEADERS = new Set([
   "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "true-client-ip", "forwarded", "via",
 ]);
 const DROP_REQUEST_PREFIXES = ["cf-", "sec-", "x-gateway-"];
-/** Credential headers: dropped for configured upstreams (their own credential is attached instead). */
-export const CREDENTIAL_HEADERS = new Set(["authorization", "x-api-key", "api-key", "x-goog-api-key"]);
+/**
+ * Credential channels dropped before a configured upstream's own credential is
+ * attached. Computed per upstream — the standard bearer channel plus whichever
+ * header that upstream's auth config names — never a hardcoded vendor roster;
+ * GATEWAY_DROP_HEADERS (comma list) lets an operator extend it. Every other
+ * header, however branded, passes through untouched.
+ */
+function credentialDrop(upstream: UpstreamSpec): Set<string> {
+  const drop = new Set((setting("GATEWAY_DROP_HEADERS") ?? "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean));
+  drop.add("authorization");
+  if (upstream.auth.type === "header") drop.add(upstream.auth.name.toLowerCase());
+  return drop;
+}
 
 // Never returned to the caller: hop-by-hop headers and upstream cookies, which
 // would otherwise be set on this site's domain.
@@ -208,7 +219,7 @@ export function passThroughHeaders(request: Request, drop: Set<string>): Headers
 }
 
 function upstreamHeaders(request: Request, upstream: UpstreamSpec): Headers {
-  const headers = passThroughHeaders(request, CREDENTIAL_HEADERS);
+  const headers = passThroughHeaders(request, credentialDrop(upstream));
   for (const [name, value] of Object.entries(upstream.headers)) headers.set(name, value);
   const auth = upstream.auth;
   if (auth.type === "bearer") headers.set("authorization", `Bearer ${env(auth.secretEnv)}`);

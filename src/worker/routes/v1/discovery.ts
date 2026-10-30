@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       service: id.serviceName,
       version: "1.0.0",
       open: gatewayEnabled(),
-      auth: "x-gateway-key: <key> (or Authorization: Bearer / x-api-key / api-key / x-goog-api-key)",
+      auth: "x-gateway-key: <key> (or Authorization: Bearer)",
       compatibility: "Canonical chat-completions JSON — point any compatible SDK at <origin>/v1",
       transparentPassthrough: {
         trigger: "any /v1/<path> request with x-gateway-base-url — forwarded untouched to <base-url>/<path>; response streamed back as sent",

@@ -30,7 +30,7 @@ function problem(body: unknown): string | null {
 }
 
 /**
- * OpenAI-compatible chat completions on any configured provider.
+ * Chat completions in the open chat-completions wire format, on any configured provider.
  *
  * Model: `<provider>/<model>`, a bare model name, or omitted for the default.
  * Extension: `fallbacks: ["<provider>/<model>", ...]` — tried in order when

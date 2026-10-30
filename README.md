@@ -39,7 +39,7 @@ See `.env.example` for the full annotated list. The important groups:
   `PROTECTED_BRANDS`, `SIGNAL_TERMS`, `PRODUCT_CATALOG`: operator vocabulary for
   rating sources and spotting impersonation. The catalogue can also be edited at
   runtime from the admin console (`catalog-upsert`, `catalog-delete`, `catalog-import`).
-- **AI adapter** — `AI_PROTOCOL` (`openai | anthropic | gemini | custom`),
+- **AI adapter** — `AI_PROTOCOL` (`chat-completions | messages | generate-content | binding | custom`),
   `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, auth-shape overrides, or a Workers AI
   binding. `custom` reaches any JSON API via a request template + response map.
 - **Universal /v1 gateway** — `GATEWAY_API_KEYS`, `GATEWAY_RPM`,

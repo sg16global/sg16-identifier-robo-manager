@@ -81,9 +81,9 @@ export async function verifyClaim(input: ModuleInput): Promise<ModuleOutput> {
   let contradictingReviews = 0;
   let mixedReviews = 0;
 
-  await timer.run("Retrieve published fact-checks", "Query the Google Fact Check Tools API for existing ClaimReviews.", async () => {
+  await timer.run("Retrieve published fact-checks", "Query the deployment's configured fact-check connectors for existing ClaimReviews.", async () => {
     if (!input.flags.expensiveEnabled) {
-      providers.push({ provider: "google-factcheck", operation: "claims:search", status: "disabled", latencyMs: 0, costUsd: 0, detail: "Expensive operations are switched off by the administrator." });
+      providers.push({ provider: "factcheck", operation: "claims:search", status: "disabled", latencyMs: 0, costUsd: 0, detail: "Expensive operations are switched off by the administrator." });
       limitations.push("Fact-check retrieval was disabled by the service switch for this run.");
       return "skipped";
     }

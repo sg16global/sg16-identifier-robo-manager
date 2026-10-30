@@ -10,9 +10,9 @@ import { setting } from "@/lib/settings";
  *
  * Closed by default. Without GATEWAY_API_KEYS nobody can call it: an open
  * gateway would let anyone spend the operator's provider credit. Keys are
- * accepted in the header each client SDK already uses (Authorization Bearer,
- * x-api-key, api-key, x-goog-api-key) and never in the URL, where they would
- * reach access logs.
+ * accepted in the gateway's own header or the standard bearer channel — and
+ * never in the URL, where they would reach access logs. No vendor key-header
+ * name is special-cased anywhere in this gateway.
  */
 
 export function gatewayKeys(): string[] {
@@ -27,7 +27,7 @@ export function gatewayEnabled(): boolean {
 }
 
 /** Headers that may carry the gateway key, in order. x-gateway-key leaves Authorization free for the caller's own target credentials. */
-const KEY_HEADERS = ["x-gateway-key", "authorization", "x-api-key", "api-key", "x-goog-api-key"] as const;
+const KEY_HEADERS = ["x-gateway-key", "authorization"] as const;
 
 /** Which header carried the gateway key, or null when none did. */
 export function gatewayKeyHeader(request: Request): (typeof KEY_HEADERS)[number] | null {
@@ -53,10 +53,16 @@ async function matchKey(supplied: string): Promise<string | null> {
 
 /* ---------------------------------- CORS ---------------------------------- */
 
-const ALLOWED_HEADERS = [
-  "authorization", "content-type", "accept", "x-api-key", "api-key", "x-goog-api-key", "anthropic-version", "x-request-id",
-  "x-gateway-key", "x-gateway-base-url", "x-gateway-api-key", "x-gateway-auth-header", "x-gateway-auth-scheme", "x-gateway-target",
-].join(", ");
+/**
+ * The allow-header list is never a hardcoded roster of vendor header names: a
+ * browser preflight names the headers it intends to send in
+ * `access-control-request-headers`, and we echo that list back verbatim — a
+ * true wildcard. A client of any API, however it brands its headers, is
+ * therefore never blocked by this gateway's CORS policy.
+ */
+function allowedHeaders(request: Request): string {
+  return request.headers.get("access-control-request-headers")?.trim() || "*";
+}
 const EXPOSED_HEADERS = "x-request-id, x-gateway-provider, x-gateway-model, x-gateway-upstream, x-gateway-target, retry-after";
 
 /** CORS for browser clients, per GATEWAY_CORS_ORIGINS ("*" or a comma list). Unset: server-to-server only. */
@@ -69,7 +75,7 @@ export function corsHeaders(request: Request): Record<string, string> {
   return {
     "access-control-allow-origin": allowAll ? "*" : origin,
     "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
-    "access-control-allow-headers": ALLOWED_HEADERS,
+    "access-control-allow-headers": allowedHeaders(request),
     "access-control-expose-headers": EXPOSED_HEADERS,
     "access-control-max-age": "600",
     ...(allowAll ? {} : { vary: "origin" }),

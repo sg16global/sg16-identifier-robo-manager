@@ -135,7 +135,7 @@ export async function verifyMedia(input: ModuleInput): Promise<ModuleOutput> {
       }
     } else {
       findings.push(makeFinding("generative", "No generative-tool signature found",
-        "No Stable Diffusion, ComfyUI, Midjourney, OpenAI, Firefly, FLUX or IPTC generative-source markers are present in this file. Absence of a marker does not prove the image is a camera capture — generators can be configured not to write metadata, and platforms strip it.",
+        "No generative-source markers are present in this file: neither standards assertions (IPTC digitalSourceType, C2PA generative assertions), nor embedded generation parameters, nor any operator-configured signature pattern (MEDIA_SIGNATURES) matched. Absence of a marker does not prove the image is a camera capture — generators can be configured not to write metadata, and platforms strip it.",
         "info", 0.1));
       limitations.push("A negative generator-signature scan cannot rule out synthetic origin; most pipelines strip or never write these markers.");
     }

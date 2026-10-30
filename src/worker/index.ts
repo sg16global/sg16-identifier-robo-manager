@@ -54,7 +54,7 @@ export default {
     return runInRequestScope(ctx, async () => {
       initServerIdentity();
       const url = new URL(request.url);
-      // OpenAI-style base URL for the universal API: <origin>/v1 is /api/v1.
+      // Chat-completions wire base URL for the universal API: <origin>/v1 is /api/v1.
       const path = url.pathname === "/v1" || url.pathname.startsWith("/v1/") ? `/api${url.pathname}` : url.pathname;
       const gatewayPath = path === "/api/v1" || path.startsWith("/api/v1/");
       // The caller names its own server: forward the request untouched, any path, any payload.

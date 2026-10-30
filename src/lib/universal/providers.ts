@@ -113,10 +113,16 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 /** Wire-format defaults, so a minimal config entry still authenticates sanely. */
+/**
+ * Every wire protocol defaults to the standard bearer channel. No vendor header
+ * name is assumed anywhere: a server that expects a dedicated key header (or a
+ * key in the query) is described per provider via authHeader / authScheme /
+ * authQuery / headers — configuration, not code.
+ */
 const PROTOCOL_DEFAULTS: Record<Exclude<Protocol, "binding">, { authHeader: string; authScheme: string }> = {
   "chat-completions": { authHeader: "authorization", authScheme: "Bearer" },
-  messages: { authHeader: "x-api-key", authScheme: "" },
-  "generate-content": { authHeader: "x-api-key", authScheme: "" },
+  messages: { authHeader: "authorization", authScheme: "Bearer" },
+  "generate-content": { authHeader: "authorization", authScheme: "Bearer" },
   custom: { authHeader: "authorization", authScheme: "Bearer" },
 };
 

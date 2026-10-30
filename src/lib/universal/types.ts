@@ -49,7 +49,7 @@ export interface ChatRequest {
   tool_choice?: ToolChoice;
   response_format?: { type: "text" | "json_object" | "json_schema"; json_schema?: { name?: string; schema?: unknown } };
   user?: string;
-  /** Any other field reaches OpenAI-compatible providers unchanged. */
+  /** Any other field reaches chat-completions wire providers unchanged. */
   [field: string]: unknown;
 }
 
@@ -96,7 +96,7 @@ export interface ChatChunk {
 }
 
 /**
- * A failure that reaches the gateway's caller as an OpenAI-style error.
+ * A failure that reaches the gateway's caller in the wire format's error shape.
  * `status` is what the caller receives; `retryable` says whether another
  * model in the fallback chain may succeed where this one did not.
  */

@@ -1,6 +1,6 @@
 /**
  * Server-sent events, both directions: reading provider streams and writing
- * the OpenAI-style `data: {...}` / `data: [DONE]` stream the gateway returns.
+ * the chat-completions wire format's `data: {...}` / `data: [DONE]` stream the gateway returns.
  */
 
 export interface SseEvent {

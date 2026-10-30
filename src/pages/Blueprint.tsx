@@ -37,7 +37,7 @@ const ENV_VARS = [
   ["SITE_URL / SERVICE_NAME / ROBO_NAME / REPORT_ID_PREFIX / BOT_USER_AGENT", "optional", "Canonical origin, machine id for /api/health, assistant name, report reference prefix (default RPT) and outbound-fetch user agent."],
   ["ORG_ENTITY / ORG_TYPE / ORG_JURISDICTION / ORG_REGISTRATION / ORG_FORMED / ORG_WEBSITE / ORG_WEBSITE_LABEL / ORG_EMAIL / ORG_REGISTRY", "optional", "Operating-entity block in the footer. Hidden entirely unless ORG_ENTITY is set."],
   ["CERTIFICATE_IMAGE / CERTIFICATE_MIME", "optional", "Base64 (or data: URL) image for the footer's secure certificate viewer. Hidden when unset."],
-  ["AI_PROTOCOL / AI_BASE_URL / AI_API_KEY / AI_MODEL / AI_AUTH_HEADER / AI_AUTH_SCHEME / AI_AUTH_QUERY / AI_BINDING / AI_LABEL / AI_PROVIDER_ID", "optional", "One AI model server anywhere in the world: an OpenAI-compatible, Anthropic or Gemini endpoint, a Workers AI binding, or any JSON API through a custom template."],
+  ["AI_PROTOCOL / AI_BASE_URL / AI_API_KEY / AI_MODEL / AI_AUTH_HEADER / AI_AUTH_SCHEME / AI_AUTH_QUERY / AI_BINDING / AI_LABEL / AI_PROVIDER_ID", "optional", "One AI model server anywhere in the world: any endpoint speaking the chat-completions, messages or generate-content wire format, a Workers AI binding, or any JSON API through a custom template. Auth header, scheme and extra headers are all configuration."],
   ["AI_INPUT_PRICE_PER_M / AI_OUTPUT_PRICE_PER_M", "optional", "Metering rates per million tokens for the cost model. Defaults 0.05 / 0.25."],
   ["MODEL_PROVIDERS", "optional", "JSON list of additional model servers for the universal /v1 gateway — any protocol, or custom requestTemplate/responseMap for any JSON API."],
   ["API_UPSTREAMS", "optional", "JSON map of company APIs reachable through /v1/proxy, credentials attached server-side."],
@@ -49,6 +49,8 @@ const ENV_VARS = [
   ["PRODUCT_CATALOG / RETAILER_SEARCH_URL", "optional", "Operator-supplied product catalogue seed (JSON, or via the admin console) and an optional retailer-search URL template ({{query}})."],
   ["SHOWCASE_SOURCE_URL / SHOWCASE_TITLE / SHOWCASE_SUBTITLE / SHOWCASE_CARD_CLASS / SHOWCASE_NAME_CLASS / SHOWCASE_ROLE_CLASS", "optional", "Live card rail read from any page the operator names. The section is hidden when no source is set."],
   ["RAIL_ITEMS / PRESENCE_ITEMS", "optional", "JSON lists for the optional name rail and flags strip. Both sections hide when empty."],
+  ["MEDIA_SIGNATURES", "optional", "JSON list of {pattern, label, kind} entries: brand-shaped generator/edit markers for the media forensics scanner. Standards markers are built in; everything else is configuration."],
+  ["GATEWAY_DROP_HEADERS", "optional", "Extra request headers stripped before a configured upstream's own credential is attached. Default drop-set is just the standard bearer channel."],
   ["DAILY_BUDGET_USD", "optional", "Hard daily variable-cost ceiling. Default 12."],
   ["RETENTION_DAYS", "optional", "Days before a stored report is deleted. Default 30."],
 ];
@@ -284,7 +286,7 @@ export default function BlueprintPage() {
                       ["Cache", "Managed Redis, added when needed", "Deduplicate requests and reduce repeated API cost"],
                       ["Storage", "Private object storage", "Uploads with expiring access links"],
                       ["Hosting", "Cloudflare Workers + static assets", "Edge API, HTTPS, CDN, Durable Object rate limits, image resizing"],
-                      ["AI and APIs", "Universal gateway layer", "Any model provider or company API behind one OpenAI-compatible /v1"],
+                      ["AI and APIs", "Universal gateway layer", "Any model provider or company API behind one universal /v1 (chat-completions wire format)"],
                       ["Monitoring", "Error tracking, logs, cost alerts", "Detect failures and unexpected usage"],
                     ].map(([a, b, c]) => (
                       <tr key={a} className="border-b border-mist-500/8 last:border-0">
